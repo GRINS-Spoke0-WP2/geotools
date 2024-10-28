@@ -53,3 +53,11 @@ for (y in 2001:2024) {
 }
 
 # Dati meteorologici
+a <- st_read(dsn="geo_tools/geo_matching/dati/confini/extract_zip/Limiti01012024/Com01012024",
+        layer="Com01012024_WGS84")
+
+
+library(sf)
+
+
+
