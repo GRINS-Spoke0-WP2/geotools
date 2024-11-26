@@ -1,3 +1,6 @@
 
 /geo_matching/dati/confini/extract_zip
 /geo_matching/dati/confini/zip
+*.rda
+/geo_matching/v.1.0.0/dati/confini/extract_zip
+/geo_matching/v.1.0.0/dati/confini

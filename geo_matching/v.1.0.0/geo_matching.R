@@ -16,7 +16,7 @@ geo_matching <- function(data,
   if (check_sp) {
     .check_sp(STs, ndata)
   }#spatial check
-  over_ST <- over(STs[[1]], STs[[2]])
+  over_ST <- spacetime::over(STs[[1]], STs[[2]])
   if (any(settings$format == "shp")) {
     nshp <- which(settings$format == "shp")
   }
@@ -53,14 +53,14 @@ geo_matching <- function(data,
   return(settings)
 }
 .check_format <- function(settings, ndata) {
-  #accepted: xyt matrix
+  #accepted: xyt, matrix
   if (is.null(settings$format)) {
     settings$format <- rep("xyt", ndata)
   }
   return(settings)
 }
 .check_type <- function(settings, ndata) {
-  #accepted: points grid
+  #accepted: points, grid
   if (is.null(settings$type)) {
     settings$type <- rep("points", ndata)
   }
@@ -163,7 +163,7 @@ geo_matching <- function(data,
     if ((length(sp) * length(t)) == nrow(grid.df[[i]])) {
       STs[[i]] <- STFDF(sp, t, grid.df[[i]])
     } else {
-      stop("duplicated points")
+      stop("space x time different from number of rows of dataset")
     }
     print("done")
   }
