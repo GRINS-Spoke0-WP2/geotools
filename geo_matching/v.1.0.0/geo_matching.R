@@ -13,13 +13,13 @@ geo_matching <- function(data,
   settings <- .input_check(settings, ndata)
   grid.df <- .create_df(data, settings)
   STs <- .create_STs(data, grid.df, settings)
-  if (check_sp) {
-    .check_sp(STs, ndata)
-  }#spatial check
-  over_ST <- spacetime::over(STs[[1]], STs[[2]])
-  if (any(settings$format == "shp")) {
-    nshp <- which(settings$format == "shp")
-  }
+  # if (check_sp) {
+  #   .check_sp(STs, ndata)
+  # }#spatial check
+  # over_ST <- spacetime::over(STs[[1]], STs[[2]])
+  # if (any(settings$format == "shp")) {
+  #   nshp <- which(settings$format == "shp")
+  # }
   for (i in 2:ndata) {
     over_ST <- over(STs[[1]], STs[[i]])
     if (i == nshp) {

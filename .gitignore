@@ -4,3 +4,5 @@
 *.rda
 /geo_matching/v.1.0.0/dati/confini/extract_zip
 /geo_matching/v.1.0.0/dati/confini
+geo_matching/v.1.0.0/dati/pilot_municipal_airquality_weather.csv
+geo_matching/v.1.0.0/dati/pilot_municipal_airquality_weather.zip
