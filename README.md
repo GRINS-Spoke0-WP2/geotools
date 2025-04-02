@@ -1,4 +1,4 @@
-# geotools
+# Geo tools for R
 
 ## Authors
 - **Alessandro FASSÒ**, University of Bergamo (alessandro.fasso@unibg.it).

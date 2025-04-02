@@ -1,4 +1,5 @@
 .Rproj.user
+.DS_Store
 
 man/hello.Rd
 R/hello.R
