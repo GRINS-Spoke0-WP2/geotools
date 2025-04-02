@@ -1,5 +1,7 @@
 # Geo tools for R
 
+![Cover](media/Cover.png)
+
 ## Authors
 - **Alessandro FASSÒ**, University of Bergamo (alessandro.fasso@unibg.it).
 - **Alessandro FUSTA MORO**, University of Bergamo (alessandro.fustamoro@unibg.it).
@@ -11,7 +13,7 @@ The ```geotools``` package is an R library designed to simplify the management, 
 ## Overview
 The ```geotools``` R package is structured as follows:
 | **Function** | **Description** | **Available** |
-|:-------------|:---------------|:-------------:|
+|:------------:|:----------------|:-------------:|
 | ```geomatching``` | Maps input space-time data from different spatial grids onto a specific common grid, even when their geographic reference systems may differ. This procedure is known as **spatial overlay**. It can handle two input data formats: R dataframe or matrix | Yes |
 | ```idw2hr``` | Maps input space-time data onto a high-resolution spatial grid using **IDW** (**Inverse Distance Weighting**). The goal is to assign (interpolated) observations within the boundaries of smaller municipalities (which are polygons) as well | Coming soon |
 | ```hr2poly``` | Maps input high-resolution space-time data onto polygons and computes the user-specified statistics (e.g., mean, median, and standard deviation) for each space-time variable | Coming soon |
