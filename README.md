@@ -10,6 +10,14 @@
 ## Description
 The ```geotools``` package is an R library designed to simplify the management, analysis, and processing of space-time data. In particular, it provides a comprehensive set of modules that enable the computation of statistics for space-time variables (e.g., meteorological and air quality data) whose values are available on a spatial grid at the polygonal scale (e.g., municipal or regional).
 
+## Installation
+Install the ```geotools``` package via GitHub:
+``` r
+# install.packages("devtools")
+devtools::install_github("GRINS-Spoke0-WP2/geotools")
+library(geotools)
+``` 
+
 ## Overview
 The ```geotools``` R package is structured as follows:
 | **Function** | **Description** | **Available** |
@@ -49,6 +57,20 @@ flowchart TB
         function2("**IDW2HR**"):::function
         function3("**HR2POLY**"):::function
 
+        %% settings nodes
+        settings1("format
+            type
+            crs"):::settings
+        settings2("idp
+            coord_colnames
+            time_varname
+            interest_vars
+            "):::settings
+        settings3("
+            interest_vars
+            stats
+            "):::settings
+
         %% output nodes
         output1["**data.frame**
             (_lon_ _lat_ _time_)"]:::output
@@ -56,9 +78,12 @@ flowchart TB
             (_lon_ _lat_ _time_)"]:::output
 
         %% relations
+        settings1 --> |"SETTINGS"| function1
+        settings2 --> |"SETTINGS"| function2
         input2b -->|"INPUT"| function2
         output1 -->|"INPUT"| function2
         function2 -->|"OUTPUT"| output2
+        settings3 --> |"SETTINGS"| function3
         input3b -->|"INPUT"| function3
         output2 -->|"INPUT"| function3
     end
@@ -72,5 +97,6 @@ flowchart TB
     %% styles
     classDef input stroke:royalblue,stroke-width:2px;
     classDef function stroke:orangered,stroke-width:4px;
+    classDef settings stroke:gold,stroke-width:2px;
     classDef output stroke:limegreen,stroke-width:2px;
 ```
