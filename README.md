@@ -63,7 +63,7 @@ flowchart TB
             crs"):::settings
         settings2("idp
             coord_colnames
-            time_varname
+            time_colname
             interest_vars
             "):::settings
         settings3("
