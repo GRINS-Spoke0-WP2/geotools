@@ -1,0 +1,342 @@
+# Import packages
+
+```{r}
+
+library(sf)
+library(sp)
+library(maps)
+library(gstat)
+library(dplyr)
+library(mapdata)
+library(ggplot2)
+library(reshape2)
+library(spacetime)
+source("geo_matching.R")
+```
+
+# Import data
+
+Some details about datasets:
+
+-   **A1_aq_eea.rds**: an *ST object* containing measurements from air quality monitoring stations (point data). EPSG:**4979**.
+-   **A2_aq_cams.rds**: an *ST object* containing NO2 concentrations from a mathematical model (grid data, 0.1° x 0.1°). EPSG:4326
+-   **A3a_we_era5land.rds**: an *ST object* containing weather data (grid data, 0.1° x 0.1°). EPSG:4326
+-   **A3b_we_era5sl.rds**: an *ST object* containing weather data (grid data, 0.25° x 0.25°). EPSG:4326
+-   **A4_em_cams.rds**: an *ST object* containing estimated NO2 emissions (grid data, 0.1° x 0.1°). EPSG:4326
+-   **C1_BAUs_empty.rds**: an *ST object* (grid data, 0.05° x 0.05°) that is initially empty but serves as a "container" to hold all the previous datasets (except A1 and A2, which are the response variables) at the chosen resolution. To populate this object, **IDW interpolation** will be applied. It will be transformed into **C2_BAUs_ext.rds** (with “ext” meaning extended). EPSG:4326
+-   **F2a_aq_eea.rds**: an *ST object* (grid data, 0.05° x 0.05°) containing the output from the **FRK model**. It has a column "mu" or "NO2" which represents the result of the statistical FRK model. The FRK model takes as input the datasets A1, A2, and C2 (which is the enriched C1 after applying the IDW interpolation on A3a, A3b, and A4). The output is a grid at the resolution of C2, which includes all variables of interest. This is the grid to be taken to the municipal level. EPSG:4326
+-   **F2b_aq_eea.rds**: this is identical to F2a, but with a slight variation in the FRK model settings. All considerations made for F2a apply here as well. EPSG:4326
+
+```{r}
+
+bounds <- st_read("./dati/Com01012025_g_WGS84.shp")
+bounds <- st_zm(bounds, drop=TRUE)
+data <- list(
+  "A1_AQ_EEA"=list(
+    "src"=readRDS("./dati/A1_aq_eea.rds"),
+    "data"=readRDS("./dati/A1_aq_eea.rds")@data,
+    "format"="xyt",
+    "type"="points",
+    "crs"=4979),
+  
+  "A2_AQ_CAMS"=list(
+    "src"=readRDS("./dati/A2_aq_cams.rds"),
+    "data"=acast(
+      readRDS("./dati/A2_aq_cams.rds")@data,
+      Latitude ~ Longitude ~ time,
+      value.var="AQ_CAMS_NO2"),
+    "format"="matrix",
+    "type"="grid",
+    "crs"=4326),
+  
+  "A3a_WE_ERA5LAND"=list(
+    "src"=readRDS("./dati/A3a_we_era5land.rds"),
+    "data"=readRDS("./dati/A3a_we_era5land.rds")@data,
+    "format"="xyt",
+    "type"="grid",
+    "crs"=4326),
+  
+  "A3b_WE_ERA5SL"=list(
+    "src"=readRDS("./dati/A3b_we_era5sl.rds"),
+    "data"=readRDS("./dati/A3b_we_era5sl.rds")@data,
+    "format"="xyt",
+    "type"="grid",
+    "crs"=4326),
+  
+  "A4_EM_CAMS"=list(
+    "src"=readRDS("./dati/A4_em_cams.rds"),
+    "data"=readRDS("./dati/A4_em_cams.rds")@data,
+    "format"="xyt",
+    "type"="grid",
+    "crs"=4326),
+  
+  "C1_BAUs_EMPTY"=list(
+    "src"=readRDS("./dati/C1_BAUs_empty.rds"),
+    "data"=readRDS("./dati/C1_BAUs_empty.rds")@data,
+    "format"="xyt",
+    "type"="grid",
+    "crs"=4326),
+  
+  "F2a_FRK_DELTA_MAPS_V"=list(
+    "src"=readRDS("./dati/F2a_FRK_delta_maps_V.rds"),
+    "data"=readRDS("./dati/F2a_FRK_delta_maps_V.rds")@data,
+    "format"="xyt",
+    "type"="grid",
+    "crs"=4326),
+  
+  "F2b_FRK_XI_MAPS_V"=list(
+    "src"=readRDS("./dati/F2b_FRK_xi_maps_V.rds"),
+    "data"=readRDS("./dati/F2b_FRK_xi_maps_V.rds")@data,
+    "format"="xyt",
+    "type"="grid",
+    "crs"=4326)
+)
+```
+
+## Set geo_matching *settings*
+
+```{r}
+
+# subset
+subset = list(
+  "A1_AQ_EEA"=data$A1_AQ_EEA,
+  "A2_AQ_CAMS"=data$A2_AQ_CAMS,
+  "A3a_WE_ERA5LAND"=data$A3a_WE_ERA5LAND,
+  "A3b_WE_ERA5SL"=data$A3b_WE_ERA5SL,
+  "A4_EM_CAMS"=data$A4_EM_CAMS
+  # "C1_BAUs_EMPTY"=data$C1_BAUs_EMPTY,
+  # "F2a_FRK_DELTA_MAPS_V"=data$F2a_FRK_DELTA_MAPS_V,
+  # "F2b_FRK_XI_MAPS_V"=data$F2b_FRK_XI_MAPS_V
+)
+
+data_list <- list()
+settings = list(
+  "format"=c(),
+  "type"=c(),
+  "crs"=c()
+)
+
+for (i in seq_along(subset)) {
+  data_list[[i]] <- subset[[i]]$data
+  settings$format[[i]] <- subset[[i]]$format
+  settings$type[[i]] <- subset[[i]]$type
+  settings$crs[[i]] <- subset[[i]]$crs
+}
+```
+
+# Run geo_matching
+
+```{r}
+# debug(geo_matching)
+results <- geo_matching(
+  data=data_list,
+  settings = list(
+    "format"=settings$format,
+    "type"=settings$type,
+    "crs"=settings$crs
+  )
+)
+colnames(results) <- make.unique(colnames(results))
+```
+
+## Data visualization
+
+```{r}
+
+for (var in colnames(results)[9:ncol(results)]) {
+  
+  p <- ggplot() +
+  geom_map(
+    data = map_data("italy"), # %>% filter(lat > 35),
+    map = map_data("italy"), # %>% filter(lat > 35),
+    aes(map_id = region),
+    fill = "lightgrey",
+    color = "black",
+    linewidth = 0.1,
+    alpha=.9
+  ) + 
+  geom_point(
+    data = results[results$time==results$time[1],],
+    aes(x = longitude, y = latitude, color = .data[[var]]),
+    size = 5
+  ) +
+  labs(
+    title = sprintf("Geographical map of %s", var),
+    x = "Longitude",
+    y = "Latitude"
+  )
+  print(p)
+}
+```
+
+# With IDW
+
+## Define new grid
+
+```{r}
+
+resolution <- .01
+new_grid <- expand.grid(
+  x = seq(
+    min(results$longitude),
+    max(results$longitude),
+    by=resolution
+  ),
+  y = seq(
+    min(results$latitude),
+    max(results$latitude),
+    by=resolution
+  )
+)
+coordinates(new_grid) <- ~x+y
+proj4string(new_grid) <- CRS("+proj=longlat +datum=WGS84")
+gridded(new_grid) <- TRUE
+```
+
+## Run IDW
+
+```{r}
+
+# remove NaN
+f_results <- na.omit(results)
+
+all_idw_results <- list()
+for (time_i in unique(f_results$time)) {
+  
+  # variables
+  vars <- colnames(f_results)
+  vars <- vars[
+    (vars != "longitude") &
+    (vars != "latitude") &
+    (vars != "time") &
+    (vars != "AirQualityStation") &
+    (vars != "AirQualityStationType") &
+    (vars != "AirQualityStationArea")
+  ]
+  
+  i <- 0
+  for (var_i in vars) {
+    
+    # build SpatialPointsDataFrame
+    df <- f_results[f_results$time == time_i, ]
+    coordinates(df) <- ~longitude+latitude
+    proj4string(df) <- CRS("+proj=longlat +datum=WGS84")
+    
+    # run IDW
+    obj = idw(
+      formula = as.formula(sprintf("%s ~ 1", var_i)),
+      locations = df,
+      newdata = new_grid,
+      debug.level = 0,
+      idp = 2,
+    )
+    
+    # add new column
+    if (i == 0){
+      temp <- data.frame(
+        longitude = obj@coords[, "x"],
+        latitude = obj@coords[, "y"],
+        time = as.Date(time_i)
+      )
+    }
+    temp[[var_i]] <- obj@data$var1.pred
+    i <- i + 1
+  }
+  
+  # add data regarfing new date
+  all_idw_results[[length(all_idw_results) + 1]] <- temp
+}
+
+# concat rows
+idw_results <- do.call(rbind, all_idw_results)
+```
+
+## Data visualization
+
+```{r}
+
+for (var in colnames(idw_results)[4:ncol(idw_results)]) {
+  
+  p <- ggplot() +
+    geom_point(
+      data = idw_results[idw_results$time==idw_results$time[1],],
+      aes(x = longitude, y = latitude, color = .data[[var]]),
+      alpha=.9
+    ) +
+    geom_map(
+      data = map_data("italy"), # %>% filter(lat > 35),
+      map = map_data("italy"), # %>% filter(lat > 35),
+      aes(map_id = region),
+      fill = "lightgrey",
+      color = "black",
+      linewidth = .15,
+      alpha=.25
+    ) +
+    labs(
+      title = sprintf("Geographical map of %s", var),
+      x = "Longitude",
+      y = "Latitude"
+    )
+  print(p)
+}
+```
+
+# Group by municipality
+
+Individuare i pacchetti che possono eseguire questa operazione. Una breve descrizione sul perché utilizzare una soluzione piuttosta che un'altra.
+
+## Overlap
+
+```{r}
+
+# from st (SpatialPointsDataFrame) to shp (Shape)
+idw_results_shp <- st_as_sf(
+  idw_results,
+  coords = c("longitude", "latitude"),
+  crs = 4326
+)
+
+# change CRS (Cartographic Reference System)
+idw_results_shp <- st_transform(
+  idw_results_shp,
+  crs = st_crs(bounds)
+)
+
+# overlap
+over_results <- st_join(
+  idw_results_shp,
+  bounds,
+  left = FALSE # inner join
+)
+```
+
+## Group
+
+```{r}
+
+summary <- over_results %>%
+  group_by(PRO_COM, time) %>%
+  summarise(
+    AQ_EEA_NO2_min = min(AQ_EEA_NO2, na.rm = TRUE),
+    AQ_EEA_NO2_mean = mean(AQ_EEA_NO2, na.rm = TRUE),
+    AQ_EEA_NO2_median = median(AQ_EEA_NO2, na.rm = TRUE),
+    AQ_EEA_NO2_max = median(AQ_EEA_NO2, na.rm = TRUE),
+    AQ_EEA_NO2_std = sd(AQ_EEA_NO2, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+```{r}
+summary <-st_drop_geometry(summary)
+all_df <- merge(bounds, summary)
+
+names(summary)
+
+all_df <- all_df[all_df$time==all_df$time[1],]
+
+ggplot()+
+  geom_sf(data=all_df, aes(fill=AQ_EEA_NO2_mean))
+
+ggplot()+
+  geom_sf(data=bounds) + scale_color_viridis_c()
+```
