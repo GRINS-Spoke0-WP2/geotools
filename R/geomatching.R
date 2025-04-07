@@ -3,7 +3,7 @@ library(spacetime)
 library(RColorBrewer)
 library(sf) #for shapefile
 # points and GRIDs ONLY IN WGS84 - EPSG 4326
-geo_matching <- function(data,
+geomatching <- function(data,
                          settings = NULL,
                          check_sp = FALSE) {
   ndata <- length(data)
@@ -13,6 +13,7 @@ geo_matching <- function(data,
   settings <- .input_check(settings, ndata)
   grid.df <- .create_df(data, settings)
   STs <- .create_STs(data, grid.df, settings)
+
   # if (check_sp) {
   #   .check_sp(STs, ndata)
   # }#spatial check
@@ -20,17 +21,17 @@ geo_matching <- function(data,
   # if (any(settings$format == "shp")) {
   #   nshp <- which(settings$format == "shp")
   # }
+
   for (i in 2:ndata) {
     over_ST <- over(STs[[1]], STs[[i]])
-    if (i == nshp) {
-      STs[[1]]@data <-
-        cbind(STs[[1]]@data, over_ST)
-    } else{
-      STs[[1]]@data <-
-        cbind(STs[[1]]@data, over_ST[, ncol(over_ST)])
-      if (settings$format[i] == "matrix") {
-        names(STs[[1]]@data)[ncol(STs[[1]]@data)] <- paste0("matrix_", i)
-      }
+
+     # if (i == nshp) {
+     #  STs[[1]]@data <- cbind(STs[[1]]@data, over_ST)
+     # } else{
+
+    STs[[1]]@data <- cbind(STs[[1]]@data, over_ST[, 4:ncol(over_ST), drop=FALSE])
+    if (settings$format[i] == "matrix") {
+      names(STs[[1]]@data)[ncol(STs[[1]]@data)] <- paste0("matrix_", i)
     }
   }
   return(STs[[1]]@data)
@@ -180,19 +181,3 @@ geo_matching <- function(data,
     plot(STs[[i]]@sp, col = sample(cols, 1), add = T)
   }
 }
-############# TRASH #############
-# .extract_varnames <- function(settings, ndata, grid.df) {
-#   if (is.null(settings$varnames)) {
-#     for (i in 1:ndata) {
-#       if (settings$format[i] == "xyt") {
-#         settings$varnames[i] <- names(grid.df[[i]])[4]
-#       }
-#       if (settings$format[i] == "matrix") {
-#         settings$varnames[i] <- paste0("y_", i)
-#       }
-#     }
-#   }
-#   return(settings)
-# }
-
-# settings <- .extract_varnames()
