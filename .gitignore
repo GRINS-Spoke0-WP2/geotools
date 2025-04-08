@@ -5,3 +5,5 @@ man/hello.Rd
 R/hello.R
 demo/demo_OLD.Rmd
 demo/demo.html
+demo/demo_files/*
+doc/*

@@ -13,6 +13,7 @@ library(ggplot2)
 library(reshape2)
 library(spacetime)
 source("../R/geomatching.R")
+source("../R/idw2hr.R")
 ```
 
 # Import data
@@ -68,6 +69,7 @@ for (i in seq_along(data_dict)) {
 ## Run
 
 ```{r}
+
 res_geomatch <- geomatching(
   data=data_ls,
   settings = list(
@@ -98,7 +100,7 @@ for (var in c("AQ_EEA_NO2", "AQ_CAMS_NO2", "altitude")) {
       aes(map_id = region),
       fill = "lightgrey",
       color = "black",
-      linewidth = 0.1,
+      linewidth = .1,
       alpha=.9
     ) + 
     geom_point(
@@ -110,6 +112,61 @@ for (var in c("AQ_EEA_NO2", "AQ_CAMS_NO2", "altitude")) {
     labs(
       title = sprintf("Geographical map of %s", var),
       subtitle = "Output of geomatching",
+      x = "Longitude",
+      y = "Latitude"
+    ) + 
+    scale_color_viridis_c(
+      option = "C"
+    ) +
+    theme(
+      legend.title = element_blank(),
+      plot.title = element_text(face = "bold")
+    ) 
+  print(p)
+}
+```
+
+# 2^nd^ step: `idw2hr`
+
+```{r}
+
+res_idw2hr <- idw2hr(
+  data = res_geomatch,
+  col_names = list(
+    "lon" = "longitude",
+    "lat" = "latitude",
+    "t" = "time"
+  ),
+  interest_vars = list("altitude", "AQ_EEA_NO2", "AQ_CAMS_NO2"),
+  crs = 4979
+)
+```
+
+## Data visualization
+
+```{r}
+
+for (var in c("AQ_EEA_NO2", "AQ_CAMS_NO2", "altitude")) {
+  
+  p <- ggplot() +
+    geom_point(
+      data = res_idw2hr[res_idw2hr$time==res_idw2hr$time[1],],
+      aes(x = longitude, y = latitude, color = .data[[var]]),
+      size = 5,
+      
+    ) +
+    geom_map(
+      data = map_data("italy"),
+      map = map_data("italy"),
+      aes(map_id = region),
+      fill = "lightgrey",
+      color = "black",
+      linewidth = .1,
+      alpha=.05
+    ) +
+    labs(
+      title = sprintf("Geographical map of %s", var),
+      subtitle = "Output of idw2hr",
       x = "Longitude",
       y = "Latitude"
     ) + 
