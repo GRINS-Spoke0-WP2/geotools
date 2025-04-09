@@ -2,21 +2,29 @@
 library(sp)
 library(gstat)
 library(dplyr)
+library(foreach)
+library(doParallel)
 
 idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
-                   interest_vars = NULL, idp = 1, crs=4326){
+                   interest_vars = NULL, idp = 1, crs = 4326, ncores = 2){
 
   # check section
   data <- .check_colnames(data, col_names)
   interest_vars <- .check_interest_vars(data, interest_vars)
   outgrid <- .check_outgrid(data, outgrid_params, crs)
 
+  # register cluster
+  cl <- makeCluster(ncores)
+  registerDoParallel(cl)
+
   # remove missing values
   data <- na.omit(data)
 
+  # run
   unique_times <- unique(data$time)
-  ALL_hr_data <- list()
-  for (time_i in unique_times) {
+  hr_data <- foreach(time_i = unique_times,
+                         .combine = 'rbind',
+                         .packages = c("sp", "gstat", "dplyr")) %dopar% {
 
     i <- 0
     for (var_i in interest_vars) {
@@ -46,15 +54,13 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
       temp[[var_i]] <- obj@data$var1.pred
       i <- i + 1
     }
-
-    # add data regarding new date
-    ALL_hr_data[[length(ALL_hr_data) + 1]] <- temp
+    return(temp)
   }
 
-  # rows concatenation
-  hr_data <- do.call(rbind, ALL_hr_data)
-  return(hr_data)
+  # stop cluster
+  stopCluster(cl)
 
+  return(hr_data)
 }
 
 .check_colnames <- function(data, col_names){
@@ -100,7 +106,6 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
       time = col_names$t
     )
   return(data)
-
 }
 
 .check_interest_vars <- function(data, interest_vars){
