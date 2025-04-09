@@ -21,40 +21,37 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
   data <- na.omit(data)
 
   # run
-  unique_times <- unique(data$time)
-  hr_data <- foreach(time_i = unique_times,
+  hr_data <- foreach(time_i = unique(data$time),
                          .combine = 'rbind',
                          .packages = c("sp", "gstat", "dplyr")) %dopar% {
 
-    i <- 0
-    for (var_i in interest_vars) {
+    # subset
+    subset <- data[data$time == time_i, ]
+    hr_data_i <- data.frame(
+      longitude = coordinates(outgrid)[,1],
+      latitude = coordinates(outgrid)[,2],
+      time = rep(time_i, nrow(coordinates(outgrid)))
+    )
 
-      # build spatial data.frame
-      df <- data[data$time == time_i, ]
-      coordinates(df) <- ~longitude+latitude
-      proj4string(df) <- CRS(SRS_string = sprintf("EPSG:%s", crs))
+    # build spatial data.frame
+    coordinates(subset) <- ~longitude+latitude
+    proj4string(subset) <- CRS(SRS_string = sprintf("EPSG:%s", crs))
+
+    for (var_i in interest_vars) {
 
       # run IDW
       obj = idw(
         formula = as.formula(sprintf("%s ~ 1", var_i)),
-        locations = df,
+        locations = subset,
         newdata = outgrid,
         debug.level = 0,
-        idp = idp,
+        idp = idp
       )
 
       # add new column
-      if (i == 0){
-        temp <- data.frame(
-          longitude = obj@coords[, "x"],
-          latitude = obj@coords[, "y"],
-          time = as.Date(time_i)
-        )
-      }
-      temp[[var_i]] <- obj@data$var1.pred
-      i <- i + 1
+      hr_data_i[[var_i]] <- obj@data$var1.pred
     }
-    return(temp)
+    return(hr_data_i)
   }
 
   # stop cluster
