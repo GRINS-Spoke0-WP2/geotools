@@ -20,10 +20,10 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
   # remove missing values
   data <- na.omit(data)
 
-  # run
+  # run parallel for
   hr_data <- foreach(time_i = unique(data$time),
-                         .combine = 'rbind',
-                         .packages = c("sp", "gstat", "dplyr")) %dopar% {
+                     .combine = 'rbind',
+                     .packages = c("sp", "gstat", "dplyr")) %dopar% {
 
     # subset
     subset <- data[data$time == time_i, ]
@@ -102,6 +102,7 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
       latitude = col_names$lat,
       time = col_names$t
     )
+
   return(data)
 }
 
@@ -117,6 +118,7 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
       }
     }
   }
+
   return(interest_vars)
 }
 
