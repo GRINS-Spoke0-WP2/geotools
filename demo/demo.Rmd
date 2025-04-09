@@ -3,17 +3,14 @@
 ```{r}
 
 rm(list = ls())
-library(sf)
-library(sp)
 library(maps)
-library(gstat)
 library(dplyr)
 library(mapdata)
 library(ggplot2)
-library(reshape2)
-library(spacetime)
+
 source("../R/geomatching.R")
 source("../R/idw2hr.R")
+source("../R/hr2poly.R")
 ```
 
 # Import data
@@ -177,6 +174,48 @@ for (var in c("AQ_EEA_NO2", "AQ_CAMS_NO2", "altitude")) {
       legend.title = element_blank(),
       plot.title = element_text(face = "bold")
     ) 
+  print(p)
+}
+```
+
+# 3^rd^ step: `hr2poly`
+
+```{r}
+
+res_hr2poly <- hr2poly(
+  res_idw2hr,
+  polygon_type = "mun",
+  crs = 4979
+)
+```
+
+### Data visualization
+
+```{r}
+
+for (var in c("AQ_EEA_NO2_min", "AQ_EEA_NO2_mean", "AQ_EEA_NO2_median",
+              "AQ_EEA_NO2_max", "AQ_EEA_NO2_std", "AQ_CAMS_NO2_min", "AQ_CAMS_NO2_mean",
+              "AQ_CAMS_NO2_median", "AQ_CAMS_NO2_max", "AQ_CAMS_NO2_std", "altitude_min", 
+              "altitude_mean", "altitude_median", "altitude_max", "altitude_std")) {
+  
+  p <- ggplot() +
+    geom_sf(
+      data=res_hr2poly,
+      aes_string(fill=var)
+    ) +
+    labs(
+      title = sprintf("Geographical map of %s", var),
+      subtitle = "Output of hr2poly",
+      x = "Longitude",
+      y = "Latitude"
+    ) + 
+    scale_fill_viridis_c(
+      option = "C"
+    ) +
+    theme(
+      legend.title = element_blank(),
+      plot.title = element_text(face = "bold")
+    )
   print(p)
 }
 ```

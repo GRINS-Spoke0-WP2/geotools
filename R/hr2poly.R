@@ -1,10 +1,11 @@
 # import libraries
 library(sf)
 library(dplyr)
-library(purrr)
+library(foreach)
+library(doParallel)
 
 hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
-                    crs = 4326){
+                    crs = 4326, ncores = 2){
 
   # check section
   data <- .check_colnames(data, col_names)
@@ -32,31 +33,46 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
     bounds,
     left = FALSE
   )
+  data_join <- st_drop_geometry(data_join)
+
+  # register cluster
+  cl <- makeCluster(ncores)
+  registerDoParallel(cl)
 
   # group
-  data_stats <- data_join %>%
-    group_by(
-      across(
-        all_of(c(code, "time"))
-      )
-    ) %>%
-    summarise(
-      across(
-        all_of(names(stats)),
-        lst(
-          "min" = min,
-          "mean" = mean,
-          "median" = median,
-          "max" = max,
-          "std" = sd
+  data_stats <- foreach(var_i = names(stats),
+                        .combine = "cbind",
+                        .packages = c("dplyr")) %dopar% {
+
+    temp <- data_join %>%
+      group_by(
+        across(
+          all_of(c(code, "time"))
+        )
+      ) %>%
+      summarise(
+        across(
+          all_of(c(var_i)),
+          lst(
+            "min" = min,
+            "mean" = mean,
+            "median" = median,
+            "max" = max,
+            "std" = sd
+          ),
+          na.rm = T
         ),
-        na.rm = T
-      ),
-      .groups = "drop"
-    )
+        .groups = "drop"
+      )
+    return(temp)
+  }
+  data_stats <- data_stats %>%
+    select(-which(duplicated(names(data_stats))))
+
+  # stop cluster
+  stopCluster(cl)
 
   # get polygons data
-  data_stats <- st_drop_geometry(data_stats)
   data_stats <- merge(bounds, data_stats)
 
   return(data_stats)
