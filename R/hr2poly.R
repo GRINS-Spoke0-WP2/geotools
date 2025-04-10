@@ -5,46 +5,46 @@ library(foreach)
 library(doParallel)
 
 hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
-                    crs = 4326, ncores = 2){
+                    crs = 4326, ncores = 2, keep_geometry = FALSE){
 
   # check section
-  data <- .check_colnames(data, col_names)
+  data <- .check_colnames_hr2poly(data, col_names)
   temp <- .check_polygon(polygon_type)
   bounds <- temp$bounds
   code <- temp$code
   stats <- .check_stats(data, stats)
 
   # from st to sf
-  data_sf <- st_as_sf(
+  sf_data <- st_as_sf(
     data,
-    coords = c("longitude", "latitude"),
+    coords = c("coords_x", "coords_y"),
     crs = crs
   )
 
   # change crs
-  data_sf <- st_transform(
-    data_sf,
+  sf_data <- st_transform(
+    sf_data,
     crs = st_crs(bounds)
   )
 
   # join
-  data_join <- st_join(
-    data_sf,
+  join_data <- st_join(
+    sf_data,
     bounds,
     left = FALSE
   )
-  data_join <- st_drop_geometry(data_join)
+  join_data <- st_drop_geometry(join_data)
 
   # register cluster
   cl <- makeCluster(ncores)
   registerDoParallel(cl)
 
   # group
-  data_stats <- foreach(var_i = names(stats),
+  stats_data <- foreach(var_i = names(stats),
                         .combine = "cbind",
                         .packages = c("dplyr")) %dopar% {
 
-    temp <- data_join %>%
+    temp <- join_data %>%
       group_by(
         across(
           all_of(c(code, "time"))
@@ -66,46 +66,58 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
       )
     return(temp)
   }
-  data_stats <- data_stats %>%
-    select(-which(duplicated(names(data_stats))))
+  stats_data <- stats_data %>%
+    select(-which(duplicated(names(stats_data))))
+
+  # filt not required stats
+  output_vars <- c(code, "time")
+  for(var_i in names(stats)){
+    for(stat_i in stats[[var_i]]){
+      output_vars[length(output_vars) + 1] = sprintf("%s_%s", var_i, stat_i)
+    }
+  }
+  stats_data <- stats_data %>% select(all_of(output_vars))
 
   # stop cluster
   stopCluster(cl)
 
   # get polygons data
-  data_stats <- merge(bounds, data_stats)
+  stats_data <- merge(bounds, stats_data)
 
-  return(data_stats)
+  if(keep_geometry == FALSE){
+    stats_data <- st_drop_geometry(stats_data)
+  }
+  return(stats_data)
 }
 
-.check_colnames <- function(data, col_names){
+.check_colnames_hr2poly <- function(data, col_names){
 
   # empty dictionary
   if(is.null(col_names)){
     col_names <- list(
-      "lon" = "longitude",
-      "lat" = "latitude",
+      "coords_x" = "longitude",
+      "coords_y" = "latitude",
       "t" = "time"
     )
   }
   else{
 
     # check keys presence
-    if(!("lon" %in% names(col_names))){
-      stop(sprintf("key 'lon' not present in the 'col_names' param"))
+    if(!("coords_x" %in% names(col_names))){
+      stop(sprintf("key 'coords_x' not present in the 'col_names' param"))
     }
-    if(!("lat" %in% names(col_names))){
-      stop(sprintf("key 'lat' not present in the 'col_names' param"))
+    if(!("coords_y" %in% names(col_names))){
+      stop(sprintf("key 'coords_y' not present in the 'col_names' param"))
     }
     if(!("t" %in% names(col_names))){
       stop(sprintf("key 't' not present in the 'col_names' param"))
     }
 
     # check columns presence
-    if(!(any(colnames(data) == col_names$lon))){
+    if(!(any(colnames(data) == col_names$coords_x))){
       stop(sprintf("column '%s' not present in the data.frame", col_names$lon))
     }
-    if(!(any(colnames(data) == col_names$lat))){
+    if(!(any(colnames(data) == col_names$coords_y))){
       stop(sprintf("column '%s' not present in the data.frame", col_names$la))
     }
     if(!(any(colnames(data) == col_names$t))){
@@ -116,8 +128,8 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
   # rename columns
   data <- data %>%
     rename(
-      longitude = col_names$lon,
-      latitude = col_names$lat,
+      coords_x = col_names$coords_x,
+      coords_y = col_names$coords_y,
       time = col_names$t
     )
 
@@ -151,9 +163,25 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
   if(is.null(stats)){
     stats <- list()
     for(col_i in colnames(data)){
-      if((col_i != "longitude") & (col_i != "latitude") & (col_i != "time")){
+      if((col_i != "coords_x") & (col_i != "coords_y") & (col_i != "time")){
         if(class(data[[col_i]]) == "numeric"){
           stats[[col_i]] <- c("min", "mean", "median", "max", "std")
+        }
+      }
+    }
+  }
+
+  else {
+    for(var_i in names(stats)){
+      if(!(any(colnames(data) == var_i))){
+        stop(sprintf("column '%s' not present in the data.frame", var_i))
+      } else if (class(data[[var_i]]) != "numeric") {
+        stop(sprintf("column '%s' is not numeric", var_i))
+      } else {
+        for(stat_i in stats[[var_i]]){
+          if(!(stat_i %in% c("min", "mean", "median", "max", "std"))) {
+            stop("statistic must be 'min', 'mean', 'median', 'max' or 'std'")
+          }
         }
       }
     }

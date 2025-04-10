@@ -12,7 +12,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   # PN: outgrid_params MUST reference CRS 4326
 
   # check section
-  data <- .check_colnames(data, col_names)
+  data <- .check_colnames_idw2hr(data, col_names)
   interest_vars <- .check_interest_vars(data, interest_vars)
 
   # cast to sp and reshape
@@ -61,7 +61,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   return(hr_data)
 }
 
-.check_colnames <- function(data, col_names){
+.check_colnames_idw2hr <- function(data, col_names){
 
   # empty dictionary
   if(is.null(col_names)){
