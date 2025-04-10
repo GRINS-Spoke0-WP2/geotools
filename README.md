@@ -61,14 +61,19 @@ flowchart TB
         settings1("format
             type
             crs"):::settings
-        settings2("idp
-            coord_colnames
-            time_colname
+        settings2("crs
+            outgrid_params
+            col_names
             interest_vars
+            idp
+            ncores
             "):::settings
-        settings3("
-            interest_vars
+        settings3("polygon_type
+            col_names
             stats
+            crs
+            ncores
+            keep_geometry
             "):::settings
 
         %% output nodes
