@@ -34,9 +34,9 @@ flowchart TB
 
     %% input nodes
     input1a["**data.frame**
-        (_lon_ _lat_ _time_)"]:::input
+        (_coords_x_ _coords_y_ _time_)"]:::input
     input1b["**matrix**
-        (_lon_ x _lat_ x _time_)"]:::input
+        (_coords_x_ x _coords_y_ x _time_)"]:::input
     
     %% output node
     output3["**data.frame**
@@ -48,9 +48,10 @@ flowchart TB
 
         %% input nodes
         input2b["**high resolution (HR)
-            grid**"]:::input
+            grid params**
+            EPSG:4326"]:::input
         input3b["**polygons**
-            (_.shp_)"]:::input
+            (data.frame)"]:::input
 
         %% function nodes
         function1("**GEOMATCHING**"):::function
@@ -62,7 +63,6 @@ flowchart TB
             type
             crs"):::settings
         settings2("crs
-            outgrid_params
             col_names
             interest_vars
             idp
@@ -78,8 +78,9 @@ flowchart TB
 
         %% output nodes
         output1["**data.frame**
-            (_lon_ _lat_ _time_)"]:::output
+            (_coords_x_ _coords_y_ _time_)"]:::output
         output2["**HR data.frame**
+            EPSG:4326
             (_lon_ _lat_ _time_)"]:::output
 
         %% relations
