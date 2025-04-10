@@ -1,48 +1,49 @@
 # import libraries
 library(sp)
+library(sf)
 library(gstat)
 library(dplyr)
 library(foreach)
 library(doParallel)
 
-idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
-                   interest_vars = NULL, idp = 1, crs = 4326, ncores = 2){
+idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
+                   interest_vars = NULL, idp = 1, ncores = 2){
+
+  # PN: outgrid_params MUST reference CRS 4326
 
   # check section
   data <- .check_colnames(data, col_names)
   interest_vars <- .check_interest_vars(data, interest_vars)
-  outgrid <- .check_outgrid(data, outgrid_params, crs)
+
+  # reshape and cast to spazial data.frame
+  sp_data <- .reshape(data, crs)
+
+  # build output grid
+  outgrid <- .check_outgrid(sp_data, outgrid_params, crs)
 
   # register cluster
   cl <- makeCluster(ncores)
   registerDoParallel(cl)
 
-  # remove missing values
-  data <- na.omit(data)
-
   # run parallel for
-  hr_data <- foreach(time_i = unique(data$time),
+  hr_data <- foreach(time_i = unique(sp_data@data$time),
                      .combine = 'rbind',
                      .packages = c("sp", "gstat", "dplyr")) %dopar% {
 
     # subset
-    subset <- data[data$time == time_i, ]
+    df <- subset(sp_data, time == time_i)
     hr_data_i <- data.frame(
       longitude = coordinates(outgrid)[,1],
       latitude = coordinates(outgrid)[,2],
       time = rep(time_i, nrow(coordinates(outgrid)))
     )
 
-    # build spatial data.frame
-    coordinates(subset) <- ~longitude+latitude
-    proj4string(subset) <- CRS(SRS_string = sprintf("EPSG:%s", crs))
-
     for (var_i in interest_vars) {
 
       # run IDW
       obj = idw(
         formula = as.formula(sprintf("%s ~ 1", var_i)),
-        locations = subset,
+        locations = df[!is.na(df@data[[var_i]]), ],
         newdata = outgrid,
         debug.level = 0,
         idp = idp
@@ -65,30 +66,30 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
   # empty dictionary
   if(is.null(col_names)){
     col_names <- list(
-      "lon" = "longitude",
-      "lat" = "latitude",
+      "coords_x" = "longitude",
+      "coords_y" = "latitude",
       "t" = "time"
     )
   }
   else{
 
     # check keys presence
-    if(!("lon" %in% names(col_names))){
-      stop(sprintf("key 'lon' not present in the 'col_names' param"))
+    if(!("coords_x" %in% names(col_names))){
+      stop(sprintf("key 'coords_x' not present in the 'col_names' param"))
     }
-    if(!("lat" %in% names(col_names))){
-      stop(sprintf("key 'lat' not present in the 'col_names' param"))
+    if(!("coords_y" %in% names(col_names))){
+      stop(sprintf("key 'coords_y' not present in the 'col_names' param"))
     }
     if(!("t" %in% names(col_names))){
       stop(sprintf("key 't' not present in the 'col_names' param"))
     }
 
     # check columns presence
-    if(!(any(colnames(data) == col_names$lon))){
-      stop(sprintf("column '%s' not present in the data.frame", col_names$lon))
+    if(!(any(colnames(data) == col_names$coords_x))){
+      stop(sprintf("column '%s' not present in the data.frame", col_names$coords_x))
     }
-    if(!(any(colnames(data) == col_names$lat))){
-      stop(sprintf("column '%s' not present in the data.frame", col_names$la))
+    if(!(any(colnames(data) == col_names$coords_y))){
+      stop(sprintf("column '%s' not present in the data.frame", col_names$coords_y))
     }
     if(!(any(colnames(data) == col_names$t))){
       stop(sprintf("column '%s' not present in the data.frame", col_names$t))
@@ -98,8 +99,8 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
   # rename columns
   data <- data %>%
     rename(
-      longitude = col_names$lon,
-      latitude = col_names$lat,
+      longitude = col_names$coords_x,
+      latitude = col_names$coords_y,
       time = col_names$t
     )
 
@@ -109,12 +110,14 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
 .check_interest_vars <- function(data, interest_vars){
 
   if(is.null(interest_vars)){
-    interest_vars <- colnames(data)[!(colnames(data) %in% c("Longitude", "Latitude", "Time"))]
+    interest_vars <- colnames(data)[!(colnames(data) %in% c("longitude", "latitude", "time"))]
   }
   else{
     for(var_i in interest_vars){
       if(!(any(colnames(data) == var_i))){
         stop(sprintf("column '%s' not present in the data.frame", var_i))
+      } else if(class(data[[var_i]]) != "numeric"){
+        stop(sprintf("column '%s' is not numeric", var_i))
       }
     }
   }
@@ -128,10 +131,10 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
   if(is.null(outgrid_params)){
     outgrid_params <- list(
       "resolution" = .01,
-      "min_lon" = min(data$longitude),
-      "max_lon" = max(data$longitude),
-      "min_lat" = min(data$latitude),
-      "max_lat" = max(data$latitude)
+      "min_lon" = min(data@coords[, 1]),
+      "max_lon" = max(data@coords[, 1]),
+      "min_lat" = min(data@coords[, 2]),
+      "max_lat" = max(data@coords[, 2])
     )
   }
   else{
@@ -141,7 +144,7 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
       stop(sprintf("key 'resolution' not present in the 'outgrid_params'"))
     }
     if(!("min_lon" %in% names(outgrid_params))){
-      stop(sprintf("key 'min_lom' not present in the 'outgrid_params'"))
+      stop(sprintf("key 'min_lon' not present in the 'outgrid_params'"))
     }
     if(!("max_lon" %in% names(outgrid_params))){
       stop(sprintf("key 'max_lon' not present in the 'outgrid_params'"))
@@ -172,4 +175,15 @@ idw2hr <- function(data, outgrid_params = NULL, col_names = NULL,
   gridded(outgrid) <- TRUE
 
   return(outgrid)
+}
+
+.reshape <- function(data, crs){
+
+  # to sf
+  data <- st_as_sf(data, coords = c("longitude", "latitude"), crs = crs)
+
+  # reshape
+  data <- st_transform(data, crs = 4326)
+
+  return(as(data, "Spatial"))
 }
