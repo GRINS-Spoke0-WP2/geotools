@@ -1,3 +1,17 @@
+# `geotools` demo script
+
+This R Markdown notebook demonstrates the usage of the `geotools` package for processing and analyzing space-time data. It includes three main steps:
+
+1.  **`geomatching`**: aligns spatial and temporal data from different sources onto a common grid.
+
+2.  **`idw2hr`**: interpolates data onto a high-resolution grid using Inverse Distance Weighting (IDW).
+
+3.  **`hr2poly`**: aggregates high-resolution data into polygons and computes user-defined statistics.
+
+The notebook also provides data visualization for each step, showcasing the geographical distribution of variables using `ggplot2`.
+
+------------------------------------------------------------------------
+
 # Import packages
 
 ```{r}
@@ -27,6 +41,8 @@ AQ_EEA_NO2 <- read.csv("AQ_EEA_NO2.csv")
 # R environment (.RData)
 load("AQ_CAMS_NO2.RData")
 ```
+
+------------------------------------------------------------------------
 
 # 1^st^ step: `geomatching`
 
@@ -123,19 +139,16 @@ for (var in c("AQ_EEA_NO2", "AQ_CAMS_NO2", "altitude")) {
 }
 ```
 
+------------------------------------------------------------------------
+
 # 2^nd^ step: `idw2hr`
 
 ```{r}
 
 res_idw2hr <- idw2hr(
   data = res_geomatch,
-  col_names = list(
-    "lon" = "longitude",
-    "lat" = "latitude",
-    "t" = "time"
-  ),
+  crs = 4979,
   interest_vars = list("altitude", "AQ_EEA_NO2", "AQ_CAMS_NO2"),
-  crs = 4979
 )
 ```
 
@@ -178,14 +191,33 @@ for (var in c("AQ_EEA_NO2", "AQ_CAMS_NO2", "altitude")) {
 }
 ```
 
+------------------------------------------------------------------------
+
 # 3^rd^ step: `hr2poly`
 
 ```{r}
 
 res_hr2poly <- hr2poly(
-  res_idw2hr,
+  data = res_idw2hr,
   polygon_type = "mun",
-  crs = 4979
+  keep_geometry = TRUE,
+  stats = list(
+    "AQ_EEA_NO2" = c(
+      "min",
+      "mean",
+      "max",
+      "std"
+    ),
+    "AQ_CAMS_NO2" = c(
+      "min",
+      "median",
+      "max",
+      "std"
+    ),
+    "altitude" = c(
+      "mean"
+    )
+  )
 )
 ```
 
@@ -193,10 +225,9 @@ res_hr2poly <- hr2poly(
 
 ```{r}
 
-for (var in c("AQ_EEA_NO2_min", "AQ_EEA_NO2_mean", "AQ_EEA_NO2_median",
-              "AQ_EEA_NO2_max", "AQ_EEA_NO2_std", "AQ_CAMS_NO2_min", "AQ_CAMS_NO2_mean",
-              "AQ_CAMS_NO2_median", "AQ_CAMS_NO2_max", "AQ_CAMS_NO2_std", "altitude_min", 
-              "altitude_mean", "altitude_median", "altitude_max", "altitude_std")) {
+for (var in c("AQ_EEA_NO2_min", "AQ_EEA_NO2_mean", "AQ_EEA_NO2_max", "AQ_EEA_NO2_std",  
+              "AQ_CAMS_NO2_min", "AQ_CAMS_NO2_median", "AQ_CAMS_NO2_max",  
+              "AQ_CAMS_NO2_std", "altitude_mean")) {
   
   p <- ggplot() +
     geom_sf(
