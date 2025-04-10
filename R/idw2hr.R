@@ -15,11 +15,11 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   data <- .check_colnames(data, col_names)
   interest_vars <- .check_interest_vars(data, interest_vars)
 
-  # reshape and cast to spazial data.frame
+  # cast to sp and reshape
   sp_data <- .reshape(data, crs)
 
   # build output grid
-  outgrid <- .check_outgrid(sp_data, outgrid_params, crs)
+  outgrid <- .check_outgrid(sp_data, outgrid_params)
 
   # register cluster
   cl <- makeCluster(ncores)
@@ -125,7 +125,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   return(interest_vars)
 }
 
-.check_outgrid <- function(data, outgrid_params, crs){
+.check_outgrid <- function(data, outgrid_params){
 
   # empty dictionary
   if(is.null(outgrid_params)){
@@ -171,7 +171,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
     )
   )
   coordinates(outgrid) <- ~x + y
-  proj4string(outgrid) <- CRS(SRS_string = sprintf("EPSG:%s", crs))
+  proj4string(outgrid) <- CRS(SRS_string = "EPSG:4326")
   gridded(outgrid) <- TRUE
 
   return(outgrid)
@@ -179,7 +179,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
 
 .reshape <- function(data, crs){
 
-  # to sf
+  # cast to sp
   data <- st_as_sf(data, coords = c("longitude", "latitude"), crs = crs)
 
   # reshape
