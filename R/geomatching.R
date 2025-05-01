@@ -1,11 +1,57 @@
-library(sp)
-library(spacetime)
-library(RColorBrewer)
-library(sf) #for shapefile
+#' @title Align heterogeneous space-time data onto a common grid
+#' @name geomatching
+#'
+#' @description
+#' Aligns input space-time data from different spatial grids onto a specific
+#' common grid, even when their geographic reference systems may differ.
+#' This procedure is known as \strong{spatial overlay}.
+#' It can handle two input data formats: R data.frame or matrix.
+#'
+#' @usage geomatching(data, settings = NULL, check_sp = FALSE)
+#'
+#' @param data List of space-time datasets, each either a data.frame or a
+#' 3D matrix. The spatial grid of the first element is used as the reference
+#' grid for aligning all others.
+#' @param settings Named list with the fields \code{format}, \code{type}
+#' and \code{crs}. \code{format} defines the data format for each input:
+#' use \code{xyt} if the i-th input is a data.frame with three columns
+#' representing x-coordinate, y-coordinate, and time; use \code{matrix} if the
+#' i-th input is a 3D array where the first, second, and third dimensions
+#' correspond to x, y, and time respectively. \code{type} specifies the geometry
+#' type used for matching, e.g., \code{points} or \code{grid}. \code{crs} sets
+#' the coordinate reference system as an EPSG code.
+#' @param check_sp Logical flag to enable spatial consistency checks
+#' (currently not implemented).
+#'
+#' @return A data.frame containing the matched data aligned on the reference grid.
+#'
+#' @examples
+#' # SEE "demo.Rmd" FOR MORE DETAILS
+#'
+#' \dontrun{
+#' res_geomatch <- geomatching(
+#'   data=list(AQ_EEA_NO2, AQ_CAMS_NO2),
+#'   settings = list(
+#'     "format"=list("xyt", "matrix"),
+#'     "type"=list("points", "grid"),
+#'     "crs"=list(4979, 4326)
+#'   )
+#' )}
+#'
+#' @seealso \url{https://github.com/GRINS-Spoke0-WP2/geotools/blob/develop/demo/demo.Rmd}
+#'
+#' @export
+#'
+#' @importFrom sp coordinates CRS gridded
+#' @importFrom spacetime STFDF over
+#' @importFrom RColorBrewer brewer.pal
+#' @importFrom sf st_drop_geometry st_make_valid st_transform st_geometry as_Spatial
+
 # points and GRIDs ONLY IN WGS84 - EPSG 4326
 geomatching <- function(data,
-                         settings = NULL,
-                         check_sp = FALSE) {
+                        settings = NULL,
+                        check_sp = FALSE) {
+
   ndata <- length(data)
   if (is.null(settings)) {
     settings <- .empty_settings()
@@ -23,7 +69,7 @@ geomatching <- function(data,
   # }
 
   for (i in 2:ndata) {
-    over_ST <- over(STs[[1]], STs[[i]])
+    over_ST <- spacetime::over(STs[[1]], STs[[i]])
 
      # if (i == nshp) {
      #  STs[[1]]@data <- cbind(STs[[1]]@data, over_ST)
@@ -103,7 +149,7 @@ geomatching <- function(data,
       )
       names(grid.df[[i]])[4] <- paste0("var", i)
     } else if (settings$format[i] == "shp") {
-      grid.df[[i]] <- st_drop_geometry(data[[i]])
+      grid.df[[i]] <- df::st_drop_geometry(data[[i]])
       print("done")
       next()
     } else if (settings$format[i] == "stfdf") {
@@ -132,23 +178,23 @@ geomatching <- function(data,
     sp <-
       grid.df[[i]][grid.df[[i]]$time == grid.df[[i]]$time[1], 1:2]
     if (settings$type[i] == "points") {
-      coordinates(sp) <- c("longitude", "latitude")
-      slot(sp, "proj4string") <- CRS(SRS_string = settings$crs[i])
+      sp::coordinates(sp) <- c("longitude", "latitude")
+      slot(sp, "proj4string") <- sp::CRS(SRS_string = settings$crs[i])
       t <- unique(grid.df[[i]][, 3])
     } else if (settings$type[i] == "grid") {
-      coordinates(sp) <- c("longitude", "latitude")
-      slot(sp, "proj4string") <- CRS(SRS_string = settings$crs[i])
-      gridded(sp) <- TRUE
+      sp::coordinates(sp) <- c("longitude", "latitude")
+      slot(sp, "proj4string") <- sp::CRS(SRS_string = settings$crs[i])
+      sp::gridded(sp) <- TRUE
       t <- unique(grid.df[[i]][, 3])
     } else if (settings$type[i] == "polygons") {
       sp <- data[[i]]
       if (any(class(sp) == "sf")) {
-        sp <- st_make_valid(sp)
+        sp <- sf::st_make_valid(sp)
         if (settings$crs[i] != settings$crs[1]) {
-          sp <- st_transform(sp, crs = st_crs(settings$crs[1]))
+          sp <- sf::st_transform(sp, crs = st_crs(settings$crs[1]))
         }
-        sp <- st_geometry(sp)
-        sp <- as_Spatial(sp)
+        sp <- sf::st_geometry(sp)
+        sp <- sf::as_Spatial(sp)
         ndt <- which(settings$format %in% c("xyt", "matrix"))[1]
         t <- unique(grid.df[[ndt]][, 3])
         grid.df[[i]] <-
@@ -162,7 +208,7 @@ geomatching <- function(data,
       stop(paste("format of data", i, "unknown"))
     }
     if ((length(sp) * length(t)) == nrow(grid.df[[i]])) {
-      STs[[i]] <- STFDF(sp, t, grid.df[[i]])
+      STs[[i]] <- spacetime::STFDF(sp, t, grid.df[[i]])
     } else {
       stop("space x time different from number of rows of dataset")
     }
@@ -172,7 +218,7 @@ geomatching <- function(data,
 }
 
 .check_sp <- function(STs, ndata) {
-  cols <- brewer.pal(9, "Set1")
+  cols <- RColorBrewer::brewer.pal(9, "Set1")
   for (i in 2:ndata) {
     if (settings$format[i] == "shp") {
       next()
