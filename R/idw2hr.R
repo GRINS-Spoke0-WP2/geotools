@@ -1,13 +1,85 @@
-# import libraries
-library(sp)
-library(sf)
-library(gstat)
-library(dplyr)
-library(foreach)
-library(doParallel)
+#' @title Interpolate data onto a high-resolution grid using IDW
+#' @name idw2hr
+#'
+#' @description
+#' Interpolates input space-time data onto a high-resolution spatial grid using
+#' \strong{IDW} (\strong{Inverse Distance Weighting}). The goal is to assign
+#' (interpolated) observations within the boundaries of smaller municipalities
+#' (which are polygons) as well. This function supports parallel computing.
+#'
+#' @usage idw2hr(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
+#' interest_vars = NULL, idp = 2, ncores = 1)
+#'
+#' @param data Space-time dataset in \code{data.frame} format.
+#' @param crs Coordinate Reference System (CRS) for the input data, given as an
+#' EPSG code. If it differs from \code{4326} (\strong{WGS 84}), then data will
+#' be reprojected accordingly.
+#' @param outgrid_params Named list with the fields \strong{resolution},
+#' \strong{min_lon}, \strong{max_lon}, \strong{min_lat} and \strong{max_lat}.
+#' These numeric parameters specify the resolution and geographic bounds of the
+#' output high-resolution grid. All values must refer to the CRS \strong{4326}.
+#' If not specified, then the resolution defaults to \code{0.01} and the
+#' geographic bounds are automatically inferred from the input data.
+#' @param col_names Named list with the field \strong{coords_x},
+#' \strong{coords_y} and \strong{t}. These parameters specify the names of the
+#' columns representing the x-coordinate, the y-coordinate and time respectively.
+#' If not specified, then default column names \code{"longitude"},
+#' \code{"latitude"} and \code{"time"} are assumed.
+#' @param interest_vars List specifying the names of the variables to be
+#' interpolated using IDW. If not specified, then all the available variables
+#' will be interpolated.
+#' @param idp Inverse distance power parameter used in IDW interpolation.
+#' Controls how strongly the weighting decreases with distance. Higher values
+#' give more influence to nearby points. Default value is \code{2}.
+#' @param ncores Number of CPU cores to use for parallel processing.
+#' Default value is \code{1}, then computation is performed sequentially. Higher
+#' values enable parallel execution to improve performance on large datasets.
+#'
+#' @return A \code{data.frame} resulting from interpolation onto a
+#' high-resolution grid using IDW.
+#'
+#' @examples
+#' # SEE "demo.Rmd" FOR MORE DETAILS
+#'
+#' \dontrun{
+#' res_idw2hr <- idw2hr(
+#'   data = input_data,
+#'   crs = 4979,
+#'   outgrid_params = list(
+#'     "resolution" = 0.02,
+#'     "min_lon" = 6,
+#'     "max_lon" = 7,
+#'     "min_lat" = 42,
+#'     "max_lat" = 43
+#'   ),
+#'   col_names = list(
+#'     "coords_x" = "x",
+#'     "coords_y" = "y",
+#'     "t" = "time"
+#'   ),
+#'   interest_vars = list(
+#'     "altitude",
+#'     "AQ_EEA_NO2",
+#'     "AQ_CAMS_NO2"
+#'   ),
+#'   idp = 1,
+#'   ncores = 4
+#' )}
+#'
+#' @seealso \url{https://github.com/GRINS-Spoke0-WP2/geotools/blob/develop/demo/demo.Rmd}
+#'
+#' @export
+#'
+#' @importFrom sp coordinates proj4string gridded
+#' @importFrom sf st_as_sf st_transform
+#' @importFrom gstat idw
+#' @importFrom dplyr rename
+#' @importFrom parallel makeCluster stopCluster
+#' @importFrom doParallel registerDoParallel
+#' @importFrom foreach foreach
 
 idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
-                   interest_vars = NULL, idp = 1, ncores = 2){
+                   interest_vars = NULL, idp = 2, ncores = 1){
 
   # PN: outgrid_params MUST reference CRS 4326
 
@@ -22,11 +94,11 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   outgrid <- .check_outgrid(sp_data, outgrid_params)
 
   # register cluster
-  cl <- makeCluster(ncores)
-  registerDoParallel(cl)
+  cl <- parallel::makeCluster(ncores)
+  doParallel::registerDoParallel(cl)
 
   # run parallel for
-  hr_data <- foreach(time_i = unique(sp_data@data$time),
+  hr_data <- foreach::foreach(time_i = unique(sp_data@data$time),
                      .combine = 'rbind',
                      .packages = c("sp", "gstat", "dplyr")) %dopar% {
 
@@ -41,7 +113,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
     for (var_i in interest_vars) {
 
       # run IDW
-      obj = idw(
+      obj = gstat::idw(
         formula = as.formula(sprintf("%s ~ 1", var_i)),
         locations = df[!is.na(df@data[[var_i]]), ],
         newdata = outgrid,
@@ -56,7 +128,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   }
 
   # stop cluster
-  stopCluster(cl)
+  parallel::stopCluster(cl)
 
   return(hr_data)
 }
@@ -98,7 +170,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
 
   # rename columns
   data <- data %>%
-    rename(
+    dplyr::rename(
       longitude = col_names$coords_x,
       latitude = col_names$coords_y,
       time = col_names$t
@@ -170,9 +242,9 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
       by=outgrid_params$resolution
     )
   )
-  coordinates(outgrid) <- ~x + y
-  proj4string(outgrid) <- CRS(SRS_string = "EPSG:4326")
-  gridded(outgrid) <- TRUE
+  sp::coordinates(outgrid) <- ~x + y
+  sp::proj4string(outgrid) <- CRS(SRS_string = "EPSG:4326")
+  sp::gridded(outgrid) <- TRUE
 
   return(outgrid)
 }
@@ -180,10 +252,10 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
 .reshape <- function(data, crs){
 
   # cast to sp
-  data <- st_as_sf(data, coords = c("longitude", "latitude"), crs = crs)
+  data <- sf::st_as_sf(data, coords = c("longitude", "latitude"), crs = crs)
 
   # reshape
-  data <- st_transform(data, crs = 4326)
+  data <- sf::st_transform(data, crs = 4326)
 
   return(as(data, "Spatial"))
 }

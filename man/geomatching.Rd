@@ -7,30 +7,30 @@
 geomatching(data, settings = NULL, check_sp = FALSE)
 }
 \arguments{
-\item{data}{List of space-time datasets, each either a data.frame or a
-3D matrix. The spatial grid of the first element is used as the reference
-grid for aligning all others.}
+\item{data}{List of space-time datasets, each either a \code{data.frame} or a
+3D \code{matrix}. The spatial grid of the first element is used as the
+reference grid for aligning all others.}
 
-\item{settings}{Named list with the fields \code{format}, \code{type}
-and \code{crs}. \code{format} defines the data format for each input:
-use \code{xyt} if the i-th input is a data.frame with three columns
-representing x-coordinate, y-coordinate, and time; use \code{matrix} if the
+\item{settings}{Named list with the fields \strong{format}, \strong{type}
+and \strong{crs}. \code{"format"} defines the data format for each input:
+use \code{"xyt"} if the i-th input is a data.frame with three columns
+representing x-coordinate, y-coordinate and time; use \code{"matrix"} if the
 i-th input is a 3D array where the first, second, and third dimensions
-correspond to x, y, and time respectively. \code{type} specifies the geometry
-type used for matching, e.g., \code{points} or \code{grid}. \code{crs} sets
-the coordinate reference system as an EPSG code.}
+correspond to x, y, and time respectively. \code{"type"} specifies the
+geometry type used for matching, e.g., \code{"points"} or \code{"grid"}.
+\code{"crs"} sets the Coordinate Reference System as an EPSG code.}
 
 \item{check_sp}{Logical flag to enable spatial consistency checks
 (currently not implemented).}
 }
 \value{
-A data.frame containing the matched data aligned on the reference grid.
+A \strong{data.frame} containing the matched data aligned on the
+reference grid.
 }
 \description{
 Aligns input space-time data from different spatial grids onto a specific
 common grid, even when their geographic reference systems may differ.
 This procedure is known as \strong{spatial overlay}.
-It can handle two input data formats: R data.frame or matrix.
 }
 \examples{
 # SEE "demo.Rmd" FOR MORE DETAILS

@@ -12,10 +12,15 @@ Authors@R: c(
 Description: More about what it does (maybe more than one line).
     Continuation lines should be indented.
 Depends:
-    sp,
-    spacetime,
+    dplyr,
+    doParallel,
+    foreach,
+    gstat,
+    parallel,
+    RColorBrewer,
     sf,
-    RColorBrewer
+    sp,
+    spacetime
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
