@@ -1,11 +1,76 @@
-# import libraries
-library(sf)
-library(dplyr)
-library(foreach)
-library(doParallel)
+#' @title Project high resolution grid data onto polygons
+#' @name hr2poly
+#'
+#' @description
+#' Projects input high-resolution space-time data onto \strong{polygons} and
+#' computes the user-specified statistics (e.g., mean, median, and standard
+#' deviation) for each space-time variable. This function supports parallel
+#' computing.
+#'
+#' @usage hr2poly(data, polygon_type = "mun", col_names = NULL, stats = NULL,
+#' crs = 4326, ncores = 1, keep_geometry = FALSE)
+#' @param data Space-time dataset in \code{data.frame} format.
+#' @param polygon_type Level of detail for the administrative boundaries.
+#' Accepted values are \code{"mun"} (\strong{municipalities}),
+#' \code{"prov"} (\strong{provinces}), or \code{"reg"} (\strong{regions}).
+#' Default values is \code{"mun"}.
+#' @param col_names Named list with the field \strong{coords_x},
+#' \strong{coords_y} and \strong{t}. These parameters specify the names of the
+#' columns representing the x-coordinate, the y-coordinate and time respectively.
+#' If not specified, then default column names \code{"longitude"},
+#' \code{"latitude"} and \code{"time"} are assumed.
+#' @param stats Named list specifying which statistics to compute for each
+#' variable of interest. Accepted statistics are \code{"min"} (\strong{minimum}),
+#' \code{"mean"} (\strong{mean value}), \code{"median"} (\strong{median value}),
+#' \code{"max"} (\strong{maximum}), and \code{"std"} (\strong{standard deviation}).
+#' If not specified, then all these statistics are computed for all numeric
+#' variables.
+#' @param crs Coordinate Reference System (CRS) for the input data, given as an
+#' EPSG code. If it differs from \code{4326} (\strong{WGS 84}), then data will
+#' be reprojected accordingly.
+#' @param ncores Number of CPU cores to use for parallel processing.
+#' Default value is \code{1}, then computation is performed sequentially. Higher
+#' values enable parallel execution to improve performance on large datasets.
+#' @param keep_geometry Logical. Whether to retain the geometry in the output
+#' dataset. Default is \code{FALSE}.
+#'
+#' @return A \code{data.frame} containing daily statistics of the variables of
+#' interest, computed for each administrative boundary (e.g., municipality).
+#'
+#' @examples
+#' # SEE "demo.Rmd" FOR MORE DETAILS
+#'
+#' \dontrun{
+#' res_hr2poly <- hr2poly(
+#'   data = input_data,
+#'   polygon_type = "mun",
+#'   col_names = list(
+#'     "coords_x" = "x",
+#'     "coords_y" = "y",
+#'     "t" = "time"
+#'   ),
+#'   stats = list(
+#'     "AQ_EEA_NO2" = c("min", "mean", "max", "std"),
+#'     "AQ_CAMS_NO2" = c("min", "median", "max", "std"),
+#'     "altitude" = c("mean")
+#'   ),
+#'   crs = 4979,
+#'   ncores = 2,
+#'   keep_geometry = TRUE
+#' )}
+#'
+#' @seealso \url{https://github.com/GRINS-Spoke0-WP2/geotools/blob/develop/demo/demo.Rmd}
+#'
+#' @export
+#'
+#' @importFrom sf st_as_sf st_transform st_crs st_join st_drop_geometry
+#' @importFrom dplyr rename group_by across summarise select all_of
+#' @importFrom foreach foreach
+#' @importFrom doParallel registerDoParallel
+#' @importFrom parallel makeCluster stopCluster
 
 hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
-                    crs = 4326, ncores = 2, keep_geometry = FALSE){
+                    crs = 4326, ncores = 1, keep_geometry = FALSE){
 
   # check section
   data <- .check_colnames_hr2poly(data, col_names)
@@ -15,44 +80,44 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
   stats <- .check_stats(data, stats)
 
   # from st to sf
-  sf_data <- st_as_sf(
+  sf_data <- sf::st_as_sf(
     data,
     coords = c("coords_x", "coords_y"),
     crs = crs
   )
 
   # change crs
-  sf_data <- st_transform(
+  sf_data <- sf::st_transform(
     sf_data,
-    crs = st_crs(bounds)
+    crs = sf::st_crs(bounds)
   )
 
   # join
-  join_data <- st_join(
+  join_data <- sf::st_join(
     sf_data,
     bounds,
     left = FALSE
   )
-  join_data <- st_drop_geometry(join_data)
+  join_data <- sf::st_drop_geometry(join_data)
 
   # register cluster
-  cl <- makeCluster(ncores)
-  registerDoParallel(cl)
+  cl <- parallel::makeCluster(ncores)
+  doParallel::registerDoParallel(cl)
 
   # group
-  stats_data <- foreach(var_i = names(stats),
+  stats_data <- foreach::foreach(var_i = names(stats),
                         .combine = "cbind",
                         .packages = c("dplyr")) %dopar% {
 
     temp <- join_data %>%
-      group_by(
-        across(
-          all_of(c(code, "time"))
+      dplyr::group_by(
+        dplyr::across(
+          dplyr::all_of(c(code, "time"))
         )
       ) %>%
-      summarise(
-        across(
-          all_of(c(var_i)),
+      dplyr::summarise(
+        dplyr::across(
+          dplyr::all_of(c(var_i)),
           lst(
             "min" = min,
             "mean" = mean,
@@ -67,7 +132,7 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
     return(temp)
   }
   stats_data <- stats_data %>%
-    select(-which(duplicated(names(stats_data))))
+    dplyr::select(-which(duplicated(names(stats_data))))
 
   # filt not required stats
   output_vars <- c(code, "time")
@@ -76,16 +141,16 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
       output_vars[length(output_vars) + 1] = sprintf("%s_%s", var_i, stat_i)
     }
   }
-  stats_data <- stats_data %>% select(all_of(output_vars))
+  stats_data <- stats_data %>% dplyr::select(dplyr::all_of(output_vars))
 
   # stop cluster
-  stopCluster(cl)
+  parallel::stopCluster(cl)
 
   # get polygons data
   stats_data <- merge(bounds, stats_data)
 
   if(keep_geometry == FALSE){
-    stats_data <- st_drop_geometry(stats_data)
+    stats_data <- sf::st_drop_geometry(stats_data)
   }
   return(stats_data)
 }
@@ -127,7 +192,7 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
 
   # rename columns
   data <- data %>%
-    rename(
+    dplyr::rename(
       coords_x = col_names$coords_x,
       coords_y = col_names$coords_y,
       time = col_names$t
@@ -139,7 +204,7 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
 .check_polygon <- function(polygon_type){
 
   # load data
-  load("~/Desktop/geotools/data/IT_adm_bounds_2025.RData")
+  # load("~/Desktop/geotools/data/IT_adm_bounds_2025.RData")
 
   if((polygon_type != "mun") & (polygon_type != "prov") & (polygon_type != "reg")){
     stop("'polygon' must be 'mun', 'prov' or 'reg'")
