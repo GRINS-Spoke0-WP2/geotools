@@ -1,27 +1,45 @@
 Package: geotools
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Manage Analize and Process Space-Time Data
 Version: 0.1.0
 Authors@R: c(
     person(
-      "Jane", "Doe",
-      email = "jane@example.com",
+      "Alessandro", "Fassò",
+      email = "alessandro.fasso@unibg.it",
+      role = c("aut")
+    ),
+    person(
+      "Alessandro", "Fusta Moro",
+      email = "alessandro.fustamoro@unibg.it",
+      role = c("aut")
+    ),
+    person(
+      "Lorenzo", "Leoni",
+      email = "lorenzo.leoni1998@gmail.com",
       role = c("aut", "cre")
     )
   )
-Description: More about what it does (maybe more than one line).
-    Continuation lines should be indented.
+Description: The geotools package is an R library designed to simplify the
+    management, analysis, and processing of space-time data. In particular,
+    it provides a comprehensive set of modules that enable the computation of
+    statistics for space-time variables (e.g., meteorological and air quality
+    data) whose values are available on different spatial heterogeneous grids at
+    the polygonal scale (e.g., municipal or regional).
 Depends:
-    dplyr,
-    doParallel,
-    foreach,
-    gstat,
-    parallel,
-    RColorBrewer,
-    sf,
-    sp,
-    spacetime
-License: What license is it under?
+    foreach (>= 1.5.2) 
+Imports:
+    dplyr (>= 1.1.4),
+    doParallel (>= 1.0.17),
+    gstat (>= 2.1-3),
+    parallel (>= 4.3.3) ,
+    RColorBrewer (>= 1.1-3),
+    sf (>= 1.0-20),
+    sp (>= 2.2-0),
+    spacetime (>= 1.3.3)
+License: MIT
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.2
+Suggests: 
+    knitr,
+    rmarkdown

@@ -70,13 +70,12 @@
 #'
 #' @export
 #'
-#' @importFrom sp coordinates proj4string gridded
+#' @importFrom sp coordinates proj4string gridded CRS
 #' @importFrom sf st_as_sf st_transform
 #' @importFrom gstat idw
 #' @importFrom dplyr rename
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom doParallel registerDoParallel
-#' @importFrom foreach foreach
 
 idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
                    interest_vars = NULL, idp = 2, ncores = 1){
@@ -243,7 +242,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
     )
   )
   sp::coordinates(outgrid) <- ~x + y
-  sp::proj4string(outgrid) <- CRS(SRS_string = "EPSG:4326")
+  sp::proj4string(outgrid) <- sp::CRS(SRS_string = "EPSG:4326")
   sp::gridded(outgrid) <- TRUE
 
   return(outgrid)

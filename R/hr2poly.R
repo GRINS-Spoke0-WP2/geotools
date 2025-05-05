@@ -1,8 +1,8 @@
-#' @title Project high resolution grid data onto polygons
+#' @title Aggregate high resolution grid data onto polygons
 #' @name hr2poly
 #'
 #' @description
-#' Projects input high-resolution space-time data onto \strong{polygons} and
+#' Aggregates input high-resolution space-time data onto \strong{polygons} and
 #' computes the user-specified statistics (e.g., mean, median, and standard
 #' deviation) for each space-time variable. This function supports parallel
 #' computing.
@@ -65,7 +65,6 @@
 #'
 #' @importFrom sf st_as_sf st_transform st_crs st_join st_drop_geometry
 #' @importFrom dplyr rename group_by across summarise select all_of
-#' @importFrom foreach foreach
 #' @importFrom doParallel registerDoParallel
 #' @importFrom parallel makeCluster stopCluster
 

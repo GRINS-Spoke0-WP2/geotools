@@ -2,7 +2,7 @@
 % Please edit documentation in R/hr2poly.R
 \name{hr2poly}
 \alias{hr2poly}
-\title{Project high resolution grid data onto polygons}
+\title{Aggregate high resolution grid data onto polygons}
 \usage{
 hr2poly(data, polygon_type = "mun", col_names = NULL, stats = NULL,
 crs = 4326, ncores = 1, keep_geometry = FALSE)
@@ -44,7 +44,7 @@ A \code{data.frame} containing daily statistics of the variables of
 interest, computed for each administrative boundary (e.g., municipality).
 }
 \description{
-Projects input high-resolution space-time data onto \strong{polygons} and
+Aggregates input high-resolution space-time data onto \strong{polygons} and
 computes the user-specified statistics (e.g., mean, median, and standard
 deviation) for each space-time variable. This function supports parallel
 computing.
