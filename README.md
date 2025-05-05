@@ -22,9 +22,9 @@ library(geotools)
 The ```geotools``` R package is structured as follows:
 | **Function** | **Description** | **Available** |
 |:------------:|:----------------|:-------------:|
-| ```geomatching``` | Maps input space-time data from different spatial grids onto a specific common grid, even when their geographic reference systems may differ. This procedure is known as **spatial overlay**. It can handle two input data formats: R dataframe or matrix | Yes |
-| ```idw2hr``` | Maps input space-time data onto a high-resolution spatial grid using **IDW** (**Inverse Distance Weighting**). The goal is to assign (interpolated) observations within the boundaries of smaller municipalities (which are polygons) as well | Yes |
-| ```hr2poly``` | Maps input high-resolution space-time data onto polygons and computes the user-specified statistics (e.g., mean, median, and standard deviation) for each space-time variable | Yes |
+| ```geomatching``` | Aligns input space-time data from different spatial grids onto a specific common grid, even when their geographic reference systems may differ. This procedure is known as **spatial overlay**. It can handle two input data formats: R dataframe or matrix | Yes |
+| ```idw2hr``` | Interpolates input space-time data onto a high-resolution spatial grid using **IDW** (**Inverse Distance Weighting**). The goal is to assign (interpolated) observations within the boundaries of smaller municipalities (which are polygons) as well | Yes |
+| ```hr2poly``` | Aggregate input high-resolution space-time data onto polygons and computes the user-specified statistics (e.g., mean, median, and standard deviation) for each space-time variable | Yes |
 | ```df2poly``` | Executes consecutively ```geomatching```, ```idw2hr```, and ```hr2poly``` | Coming soon |
 
 ## Flowchart
