@@ -8,7 +8,7 @@
 #' (which are polygons) as well. This function supports parallel computing.
 #'
 #' @usage idw2hr(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
-#' interest_vars = NULL, idp = 2, ncores = 1)
+#' interest_vars = NULL, idp = 1, nmax = 4, ncores = 1)
 #'
 #' @param data Space-time dataset in \code{data.frame} format.
 #' @param crs Coordinate Reference System (CRS) for the input data, given as an
@@ -30,7 +30,9 @@
 #' will be interpolated.
 #' @param idp Inverse distance power parameter used in IDW interpolation.
 #' Controls how strongly the weighting decreases with distance. Higher values
-#' give more influence to nearby points. Default value is \code{2}.
+#' give more influence to nearby points. Default value is \code{1}.
+#' @param nmax Number of points to take into account to perform IDW. Default
+#' value is \code{4}.
 #' @param ncores Number of CPU cores to use for parallel processing.
 #' Default value is \code{1}, then computation is performed sequentially. Higher
 #' values enable parallel execution to improve performance on large datasets.
@@ -73,12 +75,12 @@
 #' @importFrom sp coordinates proj4string gridded CRS
 #' @importFrom sf st_as_sf st_transform
 #' @importFrom gstat idw
-#' @importFrom dplyr rename
+#' @importFrom dplyr rename %>%
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom doParallel registerDoParallel
 
 idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
-                   interest_vars = NULL, idp = 2, ncores = 1){
+                   interest_vars = NULL, idp = 1, nmax = 4, ncores = 1){
 
   # PN: outgrid_params MUST reference CRS 4326
 
@@ -93,7 +95,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   outgrid <- .check_outgrid(sp_data, outgrid_params)
 
   # register cluster
-  cl <- parallel::makeCluster(ncores)
+  cl <- parallel::makeCluster(ncores) # parallel::detectCores()
   doParallel::registerDoParallel(cl)
 
   # run parallel for
@@ -117,7 +119,8 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
         locations = df[!is.na(df@data[[var_i]]), ],
         newdata = outgrid,
         debug.level = 0,
-        idp = idp
+        idp = idp,
+        nmax = nmax
       )
 
       # add new column

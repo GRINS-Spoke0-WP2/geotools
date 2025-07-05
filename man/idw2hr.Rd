@@ -5,7 +5,7 @@
 \title{Interpolate data onto a high-resolution grid using IDW}
 \usage{
 idw2hr(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
-interest_vars = NULL, idp = 2, ncores = 1)
+interest_vars = NULL, idp = 1, nmax = 4, ncores = 1)
 }
 \arguments{
 \item{data}{Space-time dataset in \code{data.frame} format.}
@@ -33,7 +33,10 @@ will be interpolated.}
 
 \item{idp}{Inverse distance power parameter used in IDW interpolation.
 Controls how strongly the weighting decreases with distance. Higher values
-give more influence to nearby points. Default value is \code{2}.}
+give more influence to nearby points. Default value is \code{1}.}
+
+\item{nmax}{Number of points to take into account to perform IDW. Default
+value is \code{4}.}
 
 \item{ncores}{Number of CPU cores to use for parallel processing.
 Default value is \code{1}, then computation is performed sequentially. Higher

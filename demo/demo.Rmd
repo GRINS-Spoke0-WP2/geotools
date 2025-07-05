@@ -21,10 +21,7 @@ library(maps)
 library(dplyr)
 library(mapdata)
 library(ggplot2)
-
-source("../R/geomatching.R")
-source("../R/idw2hr.R")
-source("../R/hr2poly.R")
+library(geotools)
 ```
 
 # Import data
