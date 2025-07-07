@@ -5,10 +5,10 @@
 \title{Interpolate data onto a high-resolution grid using IDW}
 \usage{
 idw2hr(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
-interest_vars = NULL, idp = 1, nmax = 4, ncores = 1)
+interest_vars = NULL, idp = 1, nmax = 4, ncores = 1, restore_NA = FALSE)
 }
 \arguments{
-\item{data}{Space-time dataset in \code{data.frame} format.}
+\item{data}{Space-time dataset in \code{data.frame} or \code{array} format.}
 
 \item{crs}{Coordinate Reference System (CRS) for the input data, given as an
 EPSG code. If it differs from \code{4326} (\strong{WGS 84}), then data will
@@ -40,7 +40,15 @@ value is \code{4}.}
 
 \item{ncores}{Number of CPU cores to use for parallel processing.
 Default value is \code{1}, then computation is performed sequentially. Higher
-values enable parallel execution to improve performance on large datasets.}
+values enable parallel execution to improve performance on large datasets. If
+\code{ncores} exceeds the number of available cores, the number of available
+cores will be used instead.}
+
+\item{restore_NA}{If \code{TRUE}, the function will propagate NA values from
+the low-resolution dataset to the high-resolution dataset by setting
+corresponding points and their neighbors to NA. If \code{FALSE}, the function
+will leave the high-resolution dataset unchanged regarding NA values. Default
+is \code{FALSE}.}
 }
 \value{
 A \code{data.frame} resulting from interpolation onto a

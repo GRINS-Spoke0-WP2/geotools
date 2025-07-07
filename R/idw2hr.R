@@ -8,9 +8,9 @@
 #' (which are polygons) as well. This function supports parallel computing.
 #'
 #' @usage idw2hr(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
-#' interest_vars = NULL, idp = 1, nmax = 4, ncores = 1)
+#' interest_vars = NULL, idp = 1, nmax = 4, ncores = 1, restore_NA = FALSE)
 #'
-#' @param data Space-time dataset in \code{data.frame} format.
+#' @param data Space-time dataset in \code{data.frame} or \code{array} format.
 #' @param crs Coordinate Reference System (CRS) for the input data, given as an
 #' EPSG code. If it differs from \code{4326} (\strong{WGS 84}), then data will
 #' be reprojected accordingly.
@@ -35,7 +35,14 @@
 #' value is \code{4}.
 #' @param ncores Number of CPU cores to use for parallel processing.
 #' Default value is \code{1}, then computation is performed sequentially. Higher
-#' values enable parallel execution to improve performance on large datasets.
+#' values enable parallel execution to improve performance on large datasets. If
+#' \code{ncores} exceeds the number of available cores, the number of available
+#' cores will be used instead.
+#' @param restore_NA If \code{TRUE}, the function will propagate NA values from
+#' the low-resolution dataset to the high-resolution dataset by setting
+#' corresponding points and their neighbors to NA. If \code{FALSE}, the function
+#' will leave the high-resolution dataset unchanged regarding NA values. Default
+#' is \code{FALSE}.
 #'
 #' @return A \code{data.frame} resulting from interpolation onto a
 #' high-resolution grid using IDW.
@@ -80,9 +87,15 @@
 #' @importFrom doParallel registerDoParallel
 
 idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
-                   interest_vars = NULL, idp = 1, nmax = 4, ncores = 1){
+                   interest_vars = NULL, idp = 1, nmax = 4, ncores = 1,
+                   restore_NA = FALSE){
 
   # PN: outgrid_params MUST reference CRS 4326
+
+  # from array to data.frame
+  if (is.array(data) && is.numeric(data)) {
+    data <- .array2df(data)
+  }
 
   # check section
   data <- .check_colnames_idw2hr(data, col_names)
@@ -95,7 +108,15 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   outgrid <- .check_outgrid(sp_data, outgrid_params)
 
   # register cluster
-  cl <- parallel::makeCluster(ncores) # parallel::detectCores()
+  max_cores <- parallel::detectCores()
+  if (ncores > max_cores) {
+    warning(
+      sprintf("Requested %d cores, but only %d available. Using %d cores.",
+              ncores, max_cores, max_cores)
+    )
+    ncores <- max_cores
+  }
+  cl <- parallel::makeCluster(ncores)
   doParallel::registerDoParallel(cl)
 
   # run parallel for
@@ -132,7 +153,30 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   # stop cluster
   parallel::stopCluster(cl)
 
+  # restore NA
+  if (restore_NA) {
+    hr_data <- .restore_NA(data, hr_data, outgrid_params$resolution)
+  }
   return(hr_data)
+}
+
+.array2df <- function(data){
+
+  # from array to data.frame
+  df <- data.frame(
+    expand.grid(
+      latitude = dimnames(data)[[1]],
+      longitude = dimnames(data)[[2]],
+      time = as.Date(as.numeric(dimnames(data)[[3]]))
+    ),
+    var = as.vector(data)
+  )
+
+  # cast longitude and latitude
+  df$longitude <- as.numeric(as.character(df$longitude))
+  df$latitude <- as.numeric(as.character(df$latitude))
+
+  return(df)
 }
 
 .check_colnames_idw2hr <- function(data, col_names){
@@ -260,4 +304,44 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   data <- sf::st_transform(data, crs = 4326)
 
   return(as(data, "Spatial"))
+}
+
+.restore_NA <- function(lr_df, hr_df, resolution){
+
+  # select only NA points
+  NA_points <- lr_df[is.na(lr_df$var), ]
+
+  output <- hr_df
+  for (i in seq_len(nrow(NA_points))) {
+
+    lat <- NA_points$latitude[i]
+    lon <- NA_points$longitude[i]
+    t <- NA_points$time[i]
+
+    # define target latitudes: current point and one step north
+    lat_vals <- c(lat, lat + resolution)
+
+    # define target longitudes: current point and one step east
+    lon_vals <- c(lon, lon + resolution)
+
+    # loop over all combinations of latitude and longitude
+    for (lat_i in lat_vals) {
+      for (lon_i in lon_vals) {
+
+        # find matching rows in high-resolution data
+        idx <- which(
+          output$latitude == lat_i &
+            output$longitude == lon_i &
+            output$time == t
+        )
+
+        # if matching rows are found, set their 'var' to NA
+        if (length(idx) > 0) {
+          output$var[idx] <- NA
+        }
+      }
+    }
+  }
+
+  return(output)
 }
