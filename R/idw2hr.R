@@ -161,7 +161,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
 
   # restore NA
   if (restore_NA) {
-    hr_data <- .restore_NA(data, hr_data, outgrid_params$resolution)
+    hr_data <- .restore_NA(data, hr_data, outgrid_params$resolution, ncores)
   }
 
   return(hr_data)
@@ -313,42 +313,51 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   return(as(data, "Spatial"))
 }
 
-.restore_NA <- function(lr_df, hr_df, resolution){
+.restore_NA <- function(lr_df, hr_df, resolution, ncores){
 
   # select only NA points
   NA_points <- lr_df[is.na(lr_df$var), ]
 
-  output <- hr_df
-  for (i in seq_len(nrow(NA_points))) {
+  # register cluster
+  max_cores <- parallel::detectCores()
+  if (ncores > max_cores) {
+    warning(
+      sprintf("Requested %d cores, but only %d available. Using %d cores.",
+              ncores, max_cores, max_cores)
+    )
+    ncores <- max_cores
+  }
+  cl <- parallel::makeCluster(ncores)
+  doParallel::registerDoParallel(cl)
+
+  # stop cluster (on exit)
+  on.exit(
+    {
+      parallel::stopCluster(cl)
+    },
+    add = TRUE
+  )
+
+  # run
+  idx_list <- foreach::foreach(i = seq_len(nrow(NA_points)),
+                               .combine = c) %dopar% {
 
     lat <- NA_points$latitude[i]
     lon <- NA_points$longitude[i]
     t <- NA_points$time[i]
 
-    # define target latitudes: current point and one step north
     lat_vals <- c(lat, lat + resolution)
-
-    # define target longitudes: current point and one step east
     lon_vals <- c(lon, lon + resolution)
 
-    # loop over all combinations of latitude and longitude
-    for (lat_i in lat_vals) {
-      for (lon_i in lon_vals) {
-
-        # find matching rows in high-resolution data
-        idx <- which(
-          output$latitude == lat_i &
-            output$longitude == lon_i &
-            output$time == t
-        )
-
-        # if matching rows are found, set their 'var' to NA
-        if (length(idx) > 0) {
-          output$var[idx] <- NA
-        }
-      }
-    }
+    which(
+      hr_df$latitude %in% lat_vals &
+        hr_df$longitude %in% lon_vals &
+        hr_df$time == t
+    )
   }
 
-  return(output)
+  # restore NA
+  hr_df$var[unique(idx_list)] <- NA
+
+  return(hr_df)
 }
