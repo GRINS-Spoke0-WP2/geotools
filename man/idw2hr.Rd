@@ -8,7 +8,8 @@ idw2hr(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
 interest_vars = NULL, idp = 1, nmax = 4, ncores = 1, restore_NA = FALSE)
 }
 \arguments{
-\item{data}{Space-time dataset in \code{data.frame} or \code{array} format.}
+\item{data}{Space-time dataset in \code{data.frame} or \code{array} format.
+In the latter case, only one variable is allowed.}
 
 \item{crs}{Coordinate Reference System (CRS) for the input data, given as an
 EPSG code. If it differs from \code{4326} (\strong{WGS 84}), then data will

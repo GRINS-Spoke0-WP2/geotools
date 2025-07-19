@@ -99,9 +99,28 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
   )
   join_data <- sf::st_drop_geometry(join_data)
 
+  # com_exc <- !unique(bounds$name_comuni) %in% unique(join_data$nome_colonna_comuni)
+  # if(length(com_exc)>0) warning con lista degli esclusi = print(com_exc)
+
   # register cluster
+  max_cores <- parallel::detectCores()
+  if (ncores > max_cores) {
+    warning(
+      sprintf("Requested %d cores, but only %d available. Using %d cores.",
+              ncores, max_cores, max_cores)
+    )
+    ncores <- max_cores
+  }
   cl <- parallel::makeCluster(ncores)
   doParallel::registerDoParallel(cl)
+
+  # stop cluster (on exit)
+  on.exit(
+    {
+      parallel::stopCluster(cl)
+    },
+    add = TRUE
+  )
 
   # group
   stats_data <- foreach::foreach(var_i = names(stats),
@@ -141,9 +160,6 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
     }
   }
   stats_data <- stats_data %>% dplyr::select(dplyr::all_of(output_vars))
-
-  # stop cluster
-  parallel::stopCluster(cl)
 
   # get polygons data
   stats_data <- merge(bounds, stats_data)

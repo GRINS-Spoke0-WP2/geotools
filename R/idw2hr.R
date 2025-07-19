@@ -11,6 +11,7 @@
 #' interest_vars = NULL, idp = 1, nmax = 4, ncores = 1, restore_NA = FALSE)
 #'
 #' @param data Space-time dataset in \code{data.frame} or \code{array} format.
+#' In the latter case, only one variable is allowed.
 #' @param crs Coordinate Reference System (CRS) for the input data, given as an
 #' EPSG code. If it differs from \code{4326} (\strong{WGS 84}), then data will
 #' be reprojected accordingly.
@@ -119,6 +120,14 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   cl <- parallel::makeCluster(ncores)
   doParallel::registerDoParallel(cl)
 
+  # stop cluster (on exit)
+  on.exit(
+    {
+      parallel::stopCluster(cl)
+    },
+    add = TRUE
+  )
+
   # run parallel for
   hr_data <- foreach::foreach(time_i = unique(sp_data@data$time),
                      .combine = 'rbind',
@@ -150,13 +159,11 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
     return(hr_data_i)
   }
 
-  # stop cluster
-  parallel::stopCluster(cl)
-
   # restore NA
   if (restore_NA) {
     hr_data <- .restore_NA(data, hr_data, outgrid_params$resolution)
   }
+
   return(hr_data)
 }
 
