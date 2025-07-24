@@ -186,6 +186,13 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   return(df)
 }
 
+.df2array <- function(data){
+
+  data$time <- as.numeric(data$time)
+  data <- acast(data, latitude ~ longitude ~ time, value.var = "var")
+  return(data)
+}
+
 .check_colnames_idw2hr <- function(data, col_names){
 
   # empty dictionary
@@ -313,51 +320,46 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   return(as(data, "Spatial"))
 }
 
-.restore_NA <- function(lr_df, hr_df, resolution, ncores){
+.restore_NA <- function(lr_df, hr_df, resolution, ncores) {
 
-  # select only NA points
-  NA_points <- lr_df[is.na(lr_df$var), ]
-
-  # register cluster
-  max_cores <- parallel::detectCores()
-  if (ncores > max_cores) {
-    warning(
-      sprintf("Requested %d cores, but only %d available. Using %d cores.",
-              ncores, max_cores, max_cores)
-    )
-    ncores <- max_cores
-  }
-  cl <- parallel::makeCluster(ncores)
-  doParallel::registerDoParallel(cl)
-
-  # stop cluster (on exit)
-  on.exit(
-    {
-      parallel::stopCluster(cl)
-    },
-    add = TRUE
-  )
+  # from data.frame to array
+  lr_array = .df2array(lr_df)
+  hr_array = .df2array(hr_df)
 
   # run
-  idx_list <- foreach::foreach(i = seq_len(nrow(NA_points)),
-                               .combine = c) %dopar% {
+  output <- hr_array
+  for (t in dimnames(lr_array)[[3]]) {
+    for (lon in dimnames(lr_array)[[2]]) {
+      for (lat in dimnames(lr_array)[[1]]) {
+        if (is.na(lr_array[lat, lon, t])) {
 
-    lat <- NA_points$latitude[i]
-    lon <- NA_points$longitude[i]
-    t <- NA_points$time[i]
+          # central point
+          if (lat %in% dimnames(hr_array)[[1]] &&
+              lon %in% dimnames(hr_array)[[2]]) {
+            output[lat, lon, t] <- NA
+          }
 
-    lat_vals <- c(lat, lat + resolution)
-    lon_vals <- c(lon, lon + resolution)
+          # x fill
+          lat1 <- as.character(as.numeric(lat) + resolution)
+          if (lat1 %in% dimnames(hr_array)[[1]]) {
+            output[lat1, lon, t] <- NA
+          }
 
-    which(
-      hr_df$latitude %in% lat_vals &
-        hr_df$longitude %in% lon_vals &
-        hr_df$time == t
-    )
+          # y fill
+          lon1 <- as.character(as.numeric(lon) + resolution)
+          if (lon1 %in% dimnames(hr_array)[[2]]) {
+            output[lat, lon1, t] <- NA
+          }
+
+          # diagonal fill
+          if ((lon1 %in% dimnames(hr_array)[[2]]) && (lat1 %in% dimnames(hr_array)[[1]])) {
+            output[lat1, lon1, t] <- NA
+          }
+        }
+      }
+    }
   }
 
-  # restore NA
-  hr_df$var[unique(idx_list)] <- NA
-
-  return(hr_df)
+  # from array to data.frame
+  return(.array2df(output))
 }
