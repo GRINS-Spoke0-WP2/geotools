@@ -186,6 +186,16 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   return(df)
 }
 
+<<<<<<< HEAD
+=======
+.df2array <- function(data){
+
+  data$time <- as.numeric(data$time)
+  data <- acast(data, latitude ~ longitude ~ time, value.var = "var")
+  return(data)
+}
+
+>>>>>>> develop
 .check_colnames_idw2hr <- function(data, col_names){
 
   # empty dictionary
@@ -313,6 +323,7 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   return(as(data, "Spatial"))
 }
 
+<<<<<<< HEAD
 .restore_NA <- function(lr_df, hr_df, resolution, ncores){
 
   # select only NA points
@@ -360,4 +371,53 @@ idw2hr <- function(data, crs = 4326, outgrid_params = NULL, col_names = NULL,
   hr_df$var[unique(idx_list)] <- NA
 
   return(hr_df)
+=======
+.restore_NA <- function(lr_df, hr_df, resolution, ncores) {
+
+  # from data.frame to array
+  lr_array = .df2array(lr_df)
+  hr_array = .df2array(hr_df)
+
+  # get NA ind
+  NA_indices <- which(is.na(lr_array), arr.ind = TRUE)
+
+  # run
+  output <- hr_array
+  if (nrow(NA_indices) > 0) {
+
+    for (i in 1:nrow(NA_indices)) {
+
+      lat <- dimnames(lr_array)[[1]][NA_indices[i, 1]]
+      lon <- dimnames(lr_array)[[2]][NA_indices[i, 2]]
+      t <- dimnames(lr_array)[[3]][NA_indices[i, 3]]
+
+      # central point
+      if (lat %in% dimnames(hr_array)[[1]] &&
+          lon %in% dimnames(hr_array)[[2]]) {
+        output[lat, lon, t] <- NA
+      }
+
+      # x fill
+      lat1 <- as.character(as.numeric(lat) + resolution)
+      if (lat1 %in% dimnames(hr_array)[[1]]) {
+        output[lat1, lon, t] <- NA
+      }
+
+      # y fill
+      lon1 <- as.character(as.numeric(lon) + resolution)
+      if (lon1 %in% dimnames(hr_array)[[2]]) {
+        output[lat, lon1, t] <- NA
+      }
+
+      # diagonal fill
+      if ((lon1 %in% dimnames(hr_array)[[2]]) && (lat1 %in% dimnames(hr_array)[[1]])) {
+        output[lat1, lon1, t] <- NA
+      }
+
+    }
+  }
+
+  # from array to data.frame
+  return(.array2df(output))
+>>>>>>> develop
 }
