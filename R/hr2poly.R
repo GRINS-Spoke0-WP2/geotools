@@ -127,6 +127,9 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
                         .combine = "cbind",
                         .packages = c("dplyr")) %dopar% {
 
+    q25 <- function(x) as.numeric(quantile(x, probs = c(0.25), na.rm = TRUE))
+    q75 <- function(x) as.numeric(quantile(x, probs = c(0.75), na.rm = TRUE))
+
     temp <- join_data %>%
       dplyr::group_by(
         dplyr::across(
@@ -136,14 +139,15 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
       dplyr::summarise(
         dplyr::across(
           dplyr::all_of(c(var_i)),
-          lst(
-            "min" = min,
-            "mean" = mean,
-            "median" = median,
-            "max" = max,
-            "std" = sd
-          ),
-          na.rm = T
+          list(
+            min = ~min(.x, na.rm = TRUE),
+            `1st_quantile` = ~quantile(.x, 0.25, na.rm = TRUE),
+            mean = ~mean(.x, na.rm = TRUE),
+            median = ~median(.x, na.rm = TRUE),
+            `3rd_quantile` = ~quantile(.x, 0.75, na.rm = TRUE),
+            max = ~max(.x, na.rm = TRUE),
+            std = ~sd(.x, na.rm = TRUE)
+          )
         ),
         .groups = "drop"
       )
@@ -245,7 +249,7 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
     for(col_i in colnames(data)){
       if((col_i != "coords_x") & (col_i != "coords_y") & (col_i != "time")){
         if(class(data[[col_i]]) == "numeric"){
-          stats[[col_i]] <- c("min", "mean", "median", "max", "std")
+          stats[[col_i]] <- c("min", "1st_quantile", "mean", "median", "3rd_quantile", "max", "std")
         }
       }
     }
@@ -259,8 +263,8 @@ hr2poly <- function(data, polygon_type = "mun", col_names = NULL, stats = NULL,
         stop(sprintf("column '%s' is not numeric", var_i))
       } else {
         for(stat_i in stats[[var_i]]){
-          if(!(stat_i %in% c("min", "mean", "median", "max", "std"))) {
-            stop("statistic must be 'min', 'mean', 'median', 'max' or 'std'")
+          if(!(stat_i %in% c("min", "1st_quantile", "mean", "median", "3rd_quantile", "max", "std"))) {
+            stop("statistic must be 'min', '1st_quantile', 'mean', 'median', '3rd_quantile', 'max' or 'std'")
           }
         }
       }
