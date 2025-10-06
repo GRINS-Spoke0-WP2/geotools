@@ -7,3 +7,4 @@ R/hello.R
 demo/demo.html
 demo/demo_files/*
 doc/*
+.Rproj.user
