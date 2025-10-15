@@ -52,6 +52,12 @@ geomatching <- function(data,
                         settings = NULL,
                         check_sp = FALSE) {
 
+  # load della griglia 0.01 x 0.01 (hr_grid_LAUs_df.rds) e metterlo come primo dataset
+  # es. data[[2:(length(data)+1)]] <- data[[1:length(data)]] ?
+  # data[[1]] <- hr_grid_LAUs_df
+  # forse conviene avere salvata la griglia fine che ha già
+  # i codici comunali!
+
   ndata <- length(data)
   if (is.null(settings)) {
     settings <- .empty_settings()
