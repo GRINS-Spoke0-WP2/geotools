@@ -6,7 +6,7 @@
 #' common grid, even when their geographic reference systems may differ.
 #' This procedure is known as \strong{spatial overlay}.
 #'
-#' @usage geomatching(data, settings = NULL, check_sp = FALSE)
+#' @usage geomatching(data, settings = NULL, check_sp = FALSE, aggregate = FALSE, group_by = "mun")
 #'
 #' @param data List of space-time datasets, each either a \code{data.frame} or a
 #' 3D \code{matrix}. The spatial grid of the first element is used as the
@@ -46,22 +46,35 @@
 #' @importFrom spacetime STFDF over
 #' @importFrom RColorBrewer brewer.pal
 #' @importFrom sf st_drop_geometry st_make_valid st_transform st_geometry as_Spatial
+#' @importFrom dplyr rename group_by across summarise select all_of
 
 # points and GRIDs ONLY IN WGS84 - EPSG 4326
 geomatching <- function(data,
                         settings = NULL,
-                        check_sp = FALSE) {
-
-  # load della griglia 0.01 x 0.01 (hr_grid_LAUs_df.rds) e metterlo come primo dataset
-  # es. data[[2:(length(data)+1)]] <- data[[1:length(data)]] ?
-  # data[[1]] <- hr_grid_LAUs_df
-  # forse conviene avere salvata la griglia fine che ha già
-  # i codici comunali!
-
+                        check_sp = FALSE,
+                        aggregate = FALSE,
+                        group_by = "mun"){
   ndata <- length(data)
   if (is.null(settings)) {
     settings <- .empty_settings()
   }
+
+  if(aggregate){
+
+    # extend high-resolution gridded LAUs
+    hr_grid_df <- .extend_hr_grid(data, settings)
+    hr_grid_df <- hr_grid_df[, c("longitude", "latitude", "time", "COD_REG", "COD_PROV", "COD_COM")]
+
+    # extend settings
+    settings[["format"]] <- c(list("xyt"), settings[["format"]])
+    settings[["type"]] <- c(list("points"), settings[["type"]])
+    settings[["crs"]] <- c(list(4326), settings[["crs"]])
+
+    # append
+    data <- c(list(hr_grid_df), data)
+    ndata <- length(data)
+  }
+
   settings <- .input_check(settings, ndata)
   grid.df <- .create_df(data, settings)
   STs <- .create_STs(data, grid.df, settings)
@@ -86,7 +99,32 @@ geomatching <- function(data,
       names(STs[[1]]@data)[ncol(STs[[1]]@data)] <- paste0("matrix_", i)
     }
   }
-  return(STs[[1]]@data)
+
+  # aggregate
+  if (aggregate) {
+
+    # configuration
+    raw_df <- STs[[1]]@data
+    code <- .check_group_by(group_by)
+    num_vars <- .get_numeric_var_names(raw_df)
+
+    # execute
+    aggr_df <- .aggregate(raw_df, code, num_vars)
+
+    # restore missing mun.
+    if (group_by == "mun") {
+      aggr_df <- .restore_missing_mun(aggr_df)
+    }
+
+    # sort
+    aggr_df <- aggr_df[do.call(order, aggr_df[c(code, "time")]), ]
+
+    return(aggr_df)
+
+  } else {
+
+    return(STs[[1]]@data)
+  }
 }
 
 #initial conditions
@@ -190,8 +228,8 @@ geomatching <- function(data,
     } else if (settings$type[i] == "grid") {
       sp::coordinates(sp) <- c("longitude", "latitude")
       slot(sp, "proj4string") <- sp::CRS(SRS_string = settings$crs[i])
-      sp::gridded(sp) <- TRUE
       t <- unique(grid.df[[i]][, 3])
+      sp::gridded(sp) <- TRUE
     } else if (settings$type[i] == "polygons") {
       sp <- data[[i]]
       if (any(class(sp) == "sf")) {
@@ -213,6 +251,9 @@ geomatching <- function(data,
     } else {
       stop(paste("format of data", i, "unknown"))
     }
+    if (is.data.frame(t)) {
+      t <- t$time
+    }
     if ((length(sp) * length(t)) == nrow(grid.df[[i]])) {
       STs[[i]] <- spacetime::STFDF(sp, t, grid.df[[i]])
     } else {
@@ -232,4 +273,117 @@ geomatching <- function(data,
     plot(STs[[1]]@sp, main = paste("data 1 + data", i))
     plot(STs[[i]]@sp, col = sample(cols, 1), add = T)
   }
+}
+
+.extend_hr_grid <- function(data, settings) {
+
+  # get first and last dates
+  first_date <- NULL
+  last_date <- NULL
+  i <- 1
+  for(data_i in data){
+    if (settings[["format"]][[i]] == "xyt") {
+      current_first_date <- min(data_i$time)
+      current_last_date <- max(data_i$time)
+    } else {
+      current_first_date <- min(as.Date(as.numeric(dimnames(data_i)[[3]])))
+      current_last_date <- max(as.Date(as.numeric(dimnames(data_i)[[3]])))
+    }
+
+    if(is.null(first_date) || current_first_date < first_date){
+      first_date <- current_first_date
+    }
+    if(is.null(last_date) || current_last_date > last_date){
+      last_date <- current_last_date
+    }
+    i <- i + 1
+  }
+
+  # load high-resolution gridded LAUs
+  load("~/Desktop/geotools/data/hr_grid_LAUs.Rdata")
+
+  # extend grid
+  grid_list <- list()
+  i <- 1
+  for(date_i in seq(first_date, last_date, by = "day")){
+    temp <- hr_grid_LAUs
+    temp$time <- date_i
+    grid_list[[i]] <- temp
+    i <- i + 1
+  }
+  grid_df <- do.call(rbind, grid_list)
+  grid_df$time <- as.Date(grid_df$time)
+
+  return(grid_df)
+}
+
+.check_group_by <- function(group_by){
+
+  if((group_by != "mun") & (group_by != "prov") & (group_by != "reg")){
+    stop("'group_by' must be 'mun', 'prov' or 'reg'")
+  } else {
+    if(group_by == "mun"){
+      return("COD_COM")
+    }
+    if(group_by == "prov"){
+      return("COD_PROV")
+    }
+    if(group_by == "reg"){
+      return("COD_REG")
+    }
+  }
+}
+
+.get_numeric_var_names <- function(df) {
+
+  return(
+      setdiff(
+      names(df)[sapply(df, is.numeric)],
+      c("longitude", "latitude", "time", "COD_REG", "COD_PROV", "COD_COM")
+    )
+  )
+}
+
+.aggregate <- function(df, code, vars) {
+
+  q25 <- function(x) as.numeric(quantile(x, probs = c(0.25), na.rm = TRUE))
+  q75 <- function(x) as.numeric(quantile(x, probs = c(0.75), na.rm = TRUE))
+  aggr_df <- df %>%
+    dplyr::group_by(
+      dplyr::across(
+        dplyr::all_of(c(code, "time"))
+      )
+    ) %>%
+    dplyr::summarise(
+      dplyr::across(
+        dplyr::all_of(vars),
+        list(
+          min = ~min(.x, na.rm = TRUE),
+          `1st_percent` = ~quantile(.x, 0.25, na.rm = TRUE),
+          mean = ~mean(.x, na.rm = TRUE),
+          median = ~median(.x, na.rm = TRUE),
+          `3rd_percent` = ~quantile(.x, 0.75, na.rm = TRUE),
+          max = ~max(.x, na.rm = TRUE),
+          std = ~sd(.x, na.rm = TRUE)
+        )
+      ),
+      .groups = "drop"
+    )
+
+  return(aggr_df)
+}
+
+.restore_missing_mun <- function(df) {
+
+  # set Amalfi
+  temp <- df[df$COD_COM == 65006, ]
+  temp$COD_COM <- 65011
+  df <- rbind(df, temp)
+
+  # set Sagliano Micca
+  temp <- df[df$COD_COM == 96056, ]
+  temp$COD_COM <- 96034
+  df <- rbind(df, temp)
+
+  return(df)
 }

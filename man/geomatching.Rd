@@ -4,7 +4,7 @@
 \alias{geomatching}
 \title{Align heterogeneous space-time data onto a common grid}
 \usage{
-geomatching(data, settings = NULL, check_sp = FALSE)
+geomatching(data, settings = NULL, check_sp = FALSE, aggregate = FALSE, group_by = "mun")
 }
 \arguments{
 \item{data}{List of space-time datasets, each either a \code{data.frame} or a
