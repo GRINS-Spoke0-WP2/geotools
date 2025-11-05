@@ -314,7 +314,7 @@ geomatching <- function(data,
   }
 
   # load high-resolution gridded LAUs
-  load("~/Desktop/geotools/data/hr_grid_LAUs.Rdata")
+  # load("~/Desktop/geotools/data/hr_grid_LAUs.Rdata")
 
   # extend grid
   grid_list <- list()
