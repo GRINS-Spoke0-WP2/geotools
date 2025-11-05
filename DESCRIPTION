@@ -38,7 +38,7 @@ Imports:
     spacetime (>= 1.3.3)
 License: MIT
 Encoding: UTF-8
-LazyData: true
+LazyData: no
 RoxygenNote: 7.3.2
 Suggests: 
     knitr,
