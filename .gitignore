@@ -8,3 +8,4 @@ demo/demo.html
 demo/demo_files/*
 doc/*
 .Rproj.user
+demo/WE_aggr_data.RData
