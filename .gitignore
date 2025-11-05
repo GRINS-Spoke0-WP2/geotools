@@ -9,3 +9,5 @@ demo/demo_files/*
 doc/*
 .Rproj.user
 demo/WE_aggr_data.RData
+data/hr_grid_LAUs.Rdata
+data/IT_adm_bounds_2025.RData
