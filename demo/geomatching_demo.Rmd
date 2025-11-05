@@ -25,7 +25,7 @@ library(geotools)
 ```{r}
 
 # weather data
-load("demo_data.Rdata")
+load("WE_raw_data.Rdata")
 names(ERA5Land_t2m_10d)[4] <- "t2m_Land"
 names(ERA5SL_t2m_10d)[4] <- "t2m_SL"
 WE_data = list(
