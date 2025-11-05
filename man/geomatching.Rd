@@ -4,7 +4,7 @@
 \alias{geomatching}
 \title{Align heterogeneous space-time data onto a common grid}
 \usage{
-geomatching(data, settings = NULL, check_sp = FALSE, aggregate = FALSE, group_by = "mun")
+geomatching(data, settings = NULL, aggregate = FALSE, group_by = "mun")
 }
 \arguments{
 \item{data}{List of space-time datasets, each either a \code{data.frame} or a
@@ -20,8 +20,16 @@ correspond to x, y, and time respectively. \code{"type"} specifies the
 geometry type used for matching, e.g., \code{"points"} or \code{"grid"}.
 \code{"crs"} sets the Coordinate Reference System as an EPSG code.}
 
-\item{check_sp}{Logical flag to enable spatial consistency checks
-(currently not implemented).}
+\item{aggregate}{Logical flag. If \code{TRUE}, the function aggregates the
+matched data over the specified administrative boundaries (see group_by)
+and computes summary statistics (e.g., mean, median, quartiles, standard
+deviation) for each space-time variable. If \code{FALSE}, the function returns
+the matched data without aggregation.}
+
+\item{group_by}{Character string. Specifies the administrative boundary level
+for aggregation when \code{aggregate = TRUE}. Accepted values are \strong{"mun"}
+(municipality), \strong{"prov"} (province) or \strong{"reg"} (region).
+The data will be grouped and summarized according to the selected boundary level.}
 }
 \value{
 A \strong{data.frame} containing the matched data aligned on the

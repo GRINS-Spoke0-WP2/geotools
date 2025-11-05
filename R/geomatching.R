@@ -6,7 +6,7 @@
 #' common grid, even when their geographic reference systems may differ.
 #' This procedure is known as \strong{spatial overlay}.
 #'
-#' @usage geomatching(data, settings = NULL, check_sp = FALSE, aggregate = FALSE, group_by = "mun")
+#' @usage geomatching(data, settings = NULL, aggregate = FALSE, group_by = "mun")
 #'
 #' @param data List of space-time datasets, each either a \code{data.frame} or a
 #' 3D \code{matrix}. The spatial grid of the first element is used as the
@@ -19,8 +19,15 @@
 #' correspond to x, y, and time respectively. \code{"type"} specifies the
 #' geometry type used for matching, e.g., \code{"points"} or \code{"grid"}.
 #' \code{"crs"} sets the Coordinate Reference System as an EPSG code.
-#' @param check_sp Logical flag to enable spatial consistency checks
-#' (currently not implemented).
+#' @param aggregate Logical flag. If \code{TRUE}, the function aggregates the
+#' matched data over the specified administrative boundaries (see group_by)
+#' and computes summary statistics (e.g., mean, median, quartiles, standard
+#' deviation) for each space-time variable. If \code{FALSE}, the function returns
+#' the matched data without aggregation.
+#' @param group_by Character string. Specifies the administrative boundary level
+#' for aggregation when \code{aggregate = TRUE}. Accepted values are \strong{"mun"}
+#' (municipality), \strong{"prov"} (province) or \strong{"reg"} (region).
+#' The data will be grouped and summarized according to the selected boundary level.
 #'
 #' @return A \strong{data.frame} containing the matched data aligned on the
 #' reference grid.
@@ -51,15 +58,18 @@
 # points and GRIDs ONLY IN WGS84 - EPSG 4326
 geomatching <- function(data,
                         settings = NULL,
-                        check_sp = FALSE,
                         aggregate = FALSE,
                         group_by = "mun"){
+
   ndata <- length(data)
   if (is.null(settings)) {
     settings <- .empty_settings()
   }
 
   if(aggregate){
+
+    # configuration
+    code <- .check_group_by(group_by)
 
     # extend high-resolution gridded LAUs
     hr_grid_df <- .extend_hr_grid(data, settings)
@@ -79,20 +89,8 @@ geomatching <- function(data,
   grid.df <- .create_df(data, settings)
   STs <- .create_STs(data, grid.df, settings)
 
-  # if (check_sp) {
-  #   .check_sp(STs, ndata)
-  # }#spatial check
-  # over_ST <- spacetime::over(STs[[1]], STs[[2]])
-  # if (any(settings$format == "shp")) {
-  #   nshp <- which(settings$format == "shp")
-  # }
-
   for (i in 2:ndata) {
     over_ST <- spacetime::over(STs[[1]], STs[[i]])
-
-     # if (i == nshp) {
-     #  STs[[1]]@data <- cbind(STs[[1]]@data, over_ST)
-     # } else{
 
     STs[[1]]@data <- cbind(STs[[1]]@data, over_ST[, 4:ncol(over_ST), drop=FALSE])
     if (settings$format[i] == "matrix") {
@@ -105,7 +103,6 @@ geomatching <- function(data,
 
     # configuration
     raw_df <- STs[[1]]@data
-    code <- .check_group_by(group_by)
     num_vars <- .get_numeric_var_names(raw_df)
 
     # execute
@@ -127,37 +124,49 @@ geomatching <- function(data,
   }
 }
 
-#initial conditions
 .empty_settings <- function() {
+
   settings <- list(
     format = NULL,
     type = NULL,
     crs = NULL,
     varnames = NULL
   )
+
   return(settings)
 }
+
 .input_check <- function(settings, ndata) {
+
   settings <- .check_format(settings, ndata)
   settings <- .check_type(settings, ndata)
   settings <- .check_crs(settings, ndata)
+
   return(settings)
 }
+
 .check_format <- function(settings, ndata) {
-  #accepted: xyt, matrix
+
+  # accepted: xyt, matrix
   if (is.null(settings$format)) {
     settings$format <- rep("xyt", ndata)
   }
+
   return(settings)
 }
+
 .check_type <- function(settings, ndata) {
+
   #accepted: points, grid
   if (is.null(settings$type)) {
     settings$type <- rep("points", ndata)
   }
+
   return(settings)
 }
+
 .check_crs <- function(settings, ndata) {
+
   if (is.null(settings$crs)) {
     if (any(settings$format == "shp")) {
       stop("crs of shp data must be specified")
@@ -166,10 +175,12 @@ geomatching <- function(data,
   } else{
     settings$crs <- paste0("EPSG:", settings$crs)
   }
+
   return(settings)
 }
 
 .create_df <- function(data, settings) {
+
   ndata <- length(data)
   grid.df <- list()
   for (i in 1:ndata) {
@@ -210,15 +221,16 @@ geomatching <- function(data,
                                        grid.df[[i]]$latitude), ]
     print("done")
   }
+
   return(grid.df)
 }
 
 .create_STs <- function(data, grid.df, settings) {
+
   STs <- list()
   ndata <- length(data)
   for (i in 1:ndata) {
     print(paste("converting data", i, "to ST"))
-    # sp <- unique(grid.df[[i]][,1:2]) #too slow
     sp <-
       grid.df[[i]][grid.df[[i]]$time == grid.df[[i]]$time[1], 1:2]
     if (settings$type[i] == "points") {
@@ -261,10 +273,12 @@ geomatching <- function(data,
     }
     print("done")
   }
+
   return(STs)
 }
 
 .check_sp <- function(STs, ndata) {
+
   cols <- RColorBrewer::brewer.pal(9, "Set1")
   for (i in 2:ndata) {
     if (settings$format[i] == "shp") {
@@ -346,8 +360,8 @@ geomatching <- function(data,
 
 .aggregate <- function(df, code, vars) {
 
-  q25 <- function(x) as.numeric(quantile(x, probs = c(0.25), na.rm = TRUE))
-  q75 <- function(x) as.numeric(quantile(x, probs = c(0.75), na.rm = TRUE))
+  # q1 <- function(x) as.numeric(quantile(x, probs = c(0.25), na.rm = TRUE))
+  # q3 <- function(x) as.numeric(quantile(x, probs = c(0.75), na.rm = TRUE))
   aggr_df <- df %>%
     dplyr::group_by(
       dplyr::across(
@@ -359,10 +373,10 @@ geomatching <- function(data,
         dplyr::all_of(vars),
         list(
           min = ~min(.x, na.rm = TRUE),
-          `1st_percent` = ~quantile(.x, 0.25, na.rm = TRUE),
+          `1st_quartile` = ~quantile(.x, 0.25, na.rm = TRUE),
           mean = ~mean(.x, na.rm = TRUE),
           median = ~median(.x, na.rm = TRUE),
-          `3rd_percent` = ~quantile(.x, 0.75, na.rm = TRUE),
+          `3rd_quartile` = ~quantile(.x, 0.75, na.rm = TRUE),
           max = ~max(.x, na.rm = TRUE),
           std = ~sd(.x, na.rm = TRUE)
         )
