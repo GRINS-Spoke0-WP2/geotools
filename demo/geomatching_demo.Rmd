@@ -230,7 +230,7 @@ for (item_i in LAUs_data) {
 
 ```{r}
 
-save(aggr_data, file = "WE_aggr_data.RData")
+# save(aggr_data, file = "WE_aggr_data.RData")
 ```
 
 ## Visualize aggregated data
@@ -240,5 +240,14 @@ save(aggr_data, file = "WE_aggr_data.RData")
 ggplot() + 
   geom_sf(data = aggr_data[["mun"]], aes(fill = t2m_mean), linewidth = .01) + 
     scale_fill_continuous(type = "viridis")
+
+ggplot() + 
+  geom_sf(data = aggr_data[["prov"]], aes(fill = t2m_mean), linewidth = .01) + 
+    scale_fill_continuous(type = "viridis",name="temperatura °C")
+
+ggplot() + 
+  geom_sf(data = aggr_data[["reg"]], aes(fill = t2m_mean), linewidth = .01) + 
+    scale_fill_continuous(type = "viridis",name="temperatura °C")
+
 
 ```
