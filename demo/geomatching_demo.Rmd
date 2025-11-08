@@ -47,21 +47,20 @@ WE_data = list(
 )
 
 # LAUs boundaries
-load("../data/IT_adm_bounds_2025.RData")
 names(mun_bounds)[6] <- "COD_COM"
 LAUs_data = list(
   "mun_bounds" = list(
-    "data" = mun_bounds,
+    "data" = geotools::mun_bounds,
     "code" = "mun",
-    "join_var" = "COD_COM"
+    "join_var" = "PRO_COM"
   ),
   "prov_bounds" = list(
-    "data" = prov_bounds,
+    "data" = geotools::prov_bounds,
     "code" = "prov",
     "join_var" = "COD_PROV"
   ),
   "reg_bounds" = list(
-    "data" = reg_bounds,
+    "data" = geotools::reg_bounds,
     "code" = "reg",
     "join_var" = "COD_REG"
   )
@@ -226,28 +225,31 @@ for (item_i in LAUs_data) {
 }
 ```
 
-## Export aggregated data
-
-```{r}
-
-# save(aggr_data, file = "WE_aggr_data.RData")
-```
-
 ## Visualize aggregated data
 
 ```{r}
 
-ggplot() + 
-  geom_sf(data = aggr_data[["mun"]], aes(fill = t2m_mean), linewidth = .01) + 
-    scale_fill_continuous(type = "viridis")
-
-ggplot() + 
-  geom_sf(data = aggr_data[["prov"]], aes(fill = t2m_mean), linewidth = .01) + 
-    scale_fill_continuous(type = "viridis",name="temperatura °C")
-
-ggplot() + 
-  geom_sf(data = aggr_data[["reg"]], aes(fill = t2m_mean), linewidth = .01) + 
-    scale_fill_continuous(type = "viridis",name="temperatura °C")
-
-
+for (code_i in names(aggr_data)) {
+  
+  # configuration
+  df_i <- aggr_data[[code_i]]
+  subset_i <- df_i[df_i$time == df_i$time[1], ]
+  
+  # run
+  p <- ggplot() + 
+    geom_sf(
+      data = subset_i,
+      aes(fill = t2m_mean),linewidth = .01) + 
+        scale_fill_continuous(type = "viridis",name = "Temperature [°C]") +
+          labs(
+            title = "Geographical map of weather data",
+            subtitle = sprintf("Aggregation level: %s", code_i),
+            x = "Longitude",
+            y = "Latitude") +
+          theme(
+            legend.title = element_blank(),
+            plot.title = element_text(face = "bold")
+          )
+  print(p)
+}
 ```
