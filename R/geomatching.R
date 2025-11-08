@@ -73,7 +73,7 @@ geomatching <- function(data,
 
     # extend high-resolution gridded LAUs
     hr_grid_df <- .extend_hr_grid(data, settings)
-    hr_grid_df <- hr_grid_df[, c("longitude", "latitude", "time", "COD_REG", "COD_PROV", "COD_COM")]
+    hr_grid_df <- hr_grid_df[, c("longitude", "latitude", "time", "COD_REG", "COD_PROV", "PRO_COM")]
 
     # extend settings
     settings[["format"]] <- c(list("xyt"), settings[["format"]])
@@ -313,9 +313,6 @@ geomatching <- function(data,
     i <- i + 1
   }
 
-  # load high-resolution gridded LAUs
-  # load("~/Desktop/geotools/data/hr_grid_LAUs.Rdata")
-
   # extend grid
   grid_list <- list()
   i <- 1
@@ -337,7 +334,7 @@ geomatching <- function(data,
     stop("'group_by' must be 'mun', 'prov' or 'reg'")
   } else {
     if(group_by == "mun"){
-      return("COD_COM")
+      return("PRO_COM")
     }
     if(group_by == "prov"){
       return("COD_PROV")
@@ -353,36 +350,36 @@ geomatching <- function(data,
   return(
       setdiff(
       names(df)[sapply(df, is.numeric)],
-      c("longitude", "latitude", "time", "COD_REG", "COD_PROV", "COD_COM")
+      c("longitude", "latitude", "time", "COD_REG", "COD_PROV", "PRO_COM")
     )
   )
 }
 
 .aggregate <- function(df, code, vars) {
 
-  # q1 <- function(x) as.numeric(quantile(x, probs = c(0.25), na.rm = TRUE))
-  # q3 <- function(x) as.numeric(quantile(x, probs = c(0.75), na.rm = TRUE))
-  aggr_df <- df %>%
-    dplyr::group_by(
-      dplyr::across(
-        dplyr::all_of(c(code, "time"))
-      )
-    ) %>%
-    dplyr::summarise(
-      dplyr::across(
-        dplyr::all_of(vars),
-        list(
-          min = ~min(.x, na.rm = TRUE),
-          `1st_quartile` = ~quantile(.x, 0.25, na.rm = TRUE),
-          mean = ~mean(.x, na.rm = TRUE),
-          median = ~median(.x, na.rm = TRUE),
-          `3rd_quartile` = ~quantile(.x, 0.75, na.rm = TRUE),
-          max = ~max(.x, na.rm = TRUE),
-          std = ~sd(.x, na.rm = TRUE)
+  aggr_df <- suppressWarnings(
+    df %>%
+      dplyr::group_by(
+        dplyr::across(
+          dplyr::all_of(c(code, "time"))
         )
-      ),
-      .groups = "drop"
-    )
+      ) %>% 
+      dplyr::summarise(
+        dplyr::across(
+          dplyr::all_of(vars),
+          list(
+            min = ~min(.x, na.rm = TRUE),
+            `1st_quartile` = ~quantile(.x, 0.25, na.rm = TRUE),
+            mean = ~mean(.x, na.rm = TRUE),
+            median = ~median(.x, na.rm = TRUE),
+            `3rd_quartile` = ~quantile(.x, 0.75, na.rm = TRUE),
+            max = ~max(.x, na.rm = TRUE),
+            sd = ~sd(.x, na.rm = TRUE)
+          )
+        ),
+        .groups = "drop"
+      )
+  )
 
   return(aggr_df)
 }
@@ -390,13 +387,13 @@ geomatching <- function(data,
 .restore_missing_mun <- function(df) {
 
   # set Amalfi
-  temp <- df[df$COD_COM == 65006, ]
-  temp$COD_COM <- 65011
+  temp <- df[df$PRO_COM == 65006, ]
+  temp$PRO_COM <- 65011
   df <- rbind(df, temp)
 
   # set Sagliano Micca
-  temp <- df[df$COD_COM == 96056, ]
-  temp$COD_COM <- 96034
+  temp <- df[df$PRO_COM == 96056, ]
+  temp$PRO_COM <- 96034
   df <- rbind(df, temp)
 
   return(df)
