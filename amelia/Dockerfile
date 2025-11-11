@@ -8,7 +8,7 @@ RUN apt update && \
     apt install --no-install-recommends -y vim libsodium-dev libcurl4-openssl-dev
 
 # install geomatching R package from GitHub
-RUN R -e "install.packages(c('devtools', 'plumber', 'jsonlite'))" && \
+RUN R -e "install.packages(c('devtools', 'plumber', 'jsonlite', 'httr', 'DBI', 'RPostgres'))" && \
     R -e "devtools::install_github('GRINS-Spoke0-WP2/geotools', ref = '${GIT_TAG}')"
 
 EXPOSE 8000

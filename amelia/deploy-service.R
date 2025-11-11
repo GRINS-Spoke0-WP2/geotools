@@ -94,58 +94,201 @@ base_validation <- function(body){
   return(list())
 }
 
+validate_token <- function(body){
+  
+  # NB: dev'essere specificata la porta sulla quale è in ascolto l'API?
+  response <- POST(
+    url = "https://ameliadpcoll.grins.it/externalService/getValidationBearerToken",
+    body = list(
+      BearerToken = body$BearerToken,
+      username = body$username
+    ),
+    encode = "json",
+    content_type_json()
+  )
+  
+  return(response)
+}
+
+download_dataset <- function(bearer_token, username, info){
+  
+  # setup
+  more_pages < TRUE
+  page_number <- 1
+  all_data <- list()
+  
+  while(more_pages){
+    
+    # NB: da implementare il retry nel caso in cui la chiamata dovesse fallire
+    
+    # POST
+    respose <- POST(
+      url = "https://ameliadpcoll.grins.it/externalService/getTable",
+      body = list(
+        BearerToken = bearer_token,
+        username = username,
+        tableName = info$table_name,
+        columns = c(
+          info$x_column,
+          info$y_column,
+          info$temporal_column,
+          unlist(info$harmonize_column)
+        ),
+        pageNumber = page_number,
+        pageSize = 500
+      )
+    )
+    
+    # concat
+    if (!is.null(page_data$data) && length(page_data$data) > 0) {
+      all_data <- c(all_data, page_data$data)
+    }
+    
+    # update page number
+    if (!is.null(page_data$pagination)) {
+      total_elements <- page_data$pagination$totalElements
+      current_page <- page_data$pagination$pageNumber
+      page_size <- page_data$pagination$pageSize
+      if ((current_page * page_size) >= total_elements) {
+        more_pages <- FALSE
+      } else {
+        page_number <- page_number + 1
+      }
+    } else {
+      more_pages <- FALSE
+    }
+  }
+  
+  # from list to data.frame
+  if (length(all_data) > 0) {
+    df<- as.data.frame(do.call(rbind, lapply(all_data, as.data.frame)))
+  } else {
+    df <- data.frame()
+  }
+  
+  return(df)
+}
+
+insert_into_table <- function(bearer_token, username, table_name, df) {
+
+  batch_size <- 500
+  for (start in seq(1, n, by = batch_size)) {
+    
+    # from data.frame to list
+    end <- min(start + batch_size - 1, n)
+    batch <- df[start:end, , drop = FALSE]
+    data_list <- lapply(seq_len(nrow(batch)), function(i) as.list(batch[i, ]))
+    
+    # NB: da implementare il retry nel caso in cui la chiamata dovesse fallire
+    
+    # POST
+    resp <- httr::POST(
+      url = "https://ameliadpcoll.grins.it/externalService/insertIntoTable",
+      body = list(
+        BearerToken = bearer_token,
+        username = username,
+        tableName = table_name,
+        data = data_list
+      ),
+      encode = "json",
+      content_type_json()
+    )
+  }
+}
+
 #* @post /invoke-geomatching
 #* @serializer json
 function(req, res){
-  # # 0. Acquisizione Token ####
-  # get request body
+  
   body <- jsonlite::fromJSON(req$postBody, simplifyVector = FALSE)
 
   # base validation
-  val_result <- base_validation(body)
-  if(length(val_result) > 0){
+  base_val_result <- base_validation(body)
+  if(length(base_val_result) > 0){
     res$status <- 400
-    return(val_result)
+    return(base_val_result)
   }
-
-  # success response
-  return(
-    list(
-      status = "OK",
-      message = "JSON received successfully. All validations passed.",
-      username = body$username,
-      aggregation_level = body$aggregation_level
+  
+  # token validation
+  token_val_response <- validate_token(body)
+  if (!(token_val_response$status_code %in% c(200, 403))) {
+    res$status <- 400
+    return(
+      list(
+        error = TRUE,
+        type = "InvalidToken",
+        message = "Bearer token is invalid or unauthorized.",
+        details = content(token_val_response, "text")
+      )
     )
+  }
+  
+  # download dataset/s
+  data <- list()
+  geomatching_settings <- list()
+  i <- 1
+  for (item_i in body$datasets) {
+    data[[i]] <- download_dataset(
+      body$BearerToken,
+      body$username,
+      item_i
+    )
+    geomatching_settings[[i]] <- list(
+      format = item_i$format,
+      type = item_i$data_type,
+      crs = item_i$crs
+    )
+    i <- i + 1
+  }
+  
+  # create geomatching settings
+  convert_name <- function(list_convert){
+    list_convert_mod <- list()
+    list_convert_mod <- list_convert
+    list_convert_mod[["format"]] <- as.list(gsub("long format \\(xyt\\)","xyt",list_convert_mod[["format"]]))
+    list_convert_mod[["format"]] <- as.list(gsub("matrice 3D","matrix",list_convert_mod[["format"]]))
+    list_convert_mod[["type"]] <- as.list(gsub("griglia","grid",list_convert_mod[["type"]]))
+    list_convert_mod[["type"]] <- as.list(gsub("punto","points",list_convert_mod[["type"]]))
+    list_convert_mod[["crs"]] <- list_convert_mod[["crs"]]
+    return(list_convert_mod)}
+  geomatching_settings <- lapply(geomatching_settings, convert_name)
+  
+  # cast aggregation level
+  aggregation_level <- gsub("municipale", "mun", body$aggragation_level)
+  aggregation_level <- gsub("provinciale", "prov", body$aggragation_level)
+  aggregation_level <- gsub("regionale", "reg", body$aggragation_level)
+  
+  # perform geomatching
+  results <- geomatching(
+    data = data,
+    settings = geomatching_settings,
+    aggregate = TRUE,
+    group_by = aggregation_level
   )
-
-  # 1. Validazione token ####
-  # Definisci l’URL (verificare)
-  url <- "https://ameliadpcoll.grins.it/externalService/getValidationBearerToken" #da mettere la porta?
-
-  # Prepara i dati da inviare
-  validation_data <- list(
-    BearerToken = body$BearerToken,
-    username = body$username
-  )
-
-  validation_data <- list(
-    BearerToken = "abc",
-    username = "alessandro.fustamoro"
-  )
-
-
-  # Invia la richiesta POST
-  response <- POST(
-    url,
-    body = validation_data,
+  
+  # create my_processing table
+  
+  # NB: da chiedere se 'columns' accetta tutti i tipi oppure un loro sottoinsieme
+  table_name <- paste0("results_geomatching_", gsub(" ","-",as.character(format(Sys.time(),"%Y_%m_%d_%H_%M_%S"))))
+  POST(
+    url = "https://ameliadpcoll.grins.it/externalService/createTable",
+    body = list(
+      BearerToken = body$BearerToken,
+      username = body$username,
+      tableName = table_name,
+      columns = sapply(results, class)
+    ),
     encode = "json",
-    content_type_json()  # imposta Content-Type: application/json
+    content_type_json()
   )
-
-  # Controlla la risposta
-  # status_code(response)           # dovrebbe restituire 200 o 403
-  # content(response, "parsed")     # mostra il corpo JSON della risposta
-  # if(cstatus_code(response)==403){stop("Token not valid")}
+  
+  # insert into my_processing table
+  insert_into_table(
+    body$BearerToken,
+    body$username,
+    table_name,
+    results
+  )
 
   # # scrivere "Dataset presente in AMELIA"
   # # serve HOST, porta, nome del DB, schema (solo se POSTGRES), nome tabella, colonne tabella
@@ -171,96 +314,6 @@ function(req, res){
   # dbExecute(con, "
   # INSERT INTO nome_tabella (col1, col2, col3)
   # VALUES ('valore1', 123, 'valore3')")
-
-  # 2. Download dataset da AMELIA ####
-  # Parametri base
-  url <- "https://ameliadpcoll.grins.it/externalService/getValidationBearerToken" #porta?
-  jwt_token <- body$BearerToken
-  username <- body$username
-  df <- list()
-  settings_geo <- list()
-  page_size <- 500
-  for (i in 1:length(body$datasets)){ #"x_column", "y_column", "temporal_column", "harmonize_columns"
-    table_name <- body$datasets[i]$table_name
-    columns <- c(body$datasets[i]$x_column,
-                 body$datasets[i]$y_column,
-                 body$datasets[i]$temporal_column,
-                 unlist(body$datasets[i]$harmonize_column))
-
-    # Lista dove accumulare i dati
-    all_data <- list()
-    page_number <- 1
-    more_pages <- TRUE
-
-    while(more_pages) {
-
-      # Corpo della richiesta
-      body_data <- list(
-        BearerToken = jwt_token,
-        username = username,
-        tableName = table_name,
-        columns = columns,
-        pageNumber = page_number,
-        pageSize = page_size
-      )
-
-      # Chiamata POST
-      response <- POST(
-        url,
-        body = body_data,
-        encode = "json",
-        content_type_json()
-      )
-
-      # Controlla lo status
-      if(status_code(response) != 200) {
-        stop(paste("Errore API:", status_code(response)))
-      }
-
-      # Estrai i dati
-      page_data <- content(response, "parsed")
-
-      # se nel caso sfortunatissimo l ultima pagina fosse da 500 righe
-      rows <- page_data$rows
-      if(is.null(rows)) rows <- list()
-
-      # Accumula i dati in una lista
-      all_data <- c(all_data, page_data$rows)  # supponendo che i dati siano in page_data$rows
-
-      # Controlla se ci sono altre pagine
-      if(length(page_data$rows) < page_size) {
-        more_pages <- FALSE
-      } else {
-        page_number <- page_number + 1
-      }
-    }
-    # Trasforma in data.frame (opzionale)
-    df[[i]] <- do.call(rbind.data.frame, all_data)
-    settings_geo[[i]] <- list(
-      format = body$datasets[i]$format,
-      type = body$datasets[i]$data_type,
-      crs = body$datasets[i]$crs
-    )
-  }
-  # 3. Geomatching ####
-  convert_name <- function(list_convert){
-    list_convert_mod <- list()
-    list_convert_mod <- list_convert
-    list_convert_mod[["format"]] <- as.list(gsub("long format \\(xyt\\)","xyt",list_convert_mod[["format"]]))
-    list_convert_mod[["format"]] <- as.list(gsub("matrice 3D","matrix",list_convert_mod[["format"]]))
-    list_convert_mod[["type"]] <- as.list(gsub("griglia","grid",list_convert_mod[["type"]]))
-    list_convert_mod[["type"]] <- as.list(gsub("punto","points",list_convert_mod[["type"]]))
-    list_convert_mod[["crs"]] <- list_convert_mod[["crs"]]
-    return(list_convert_mod)}
-  settings_geo <- lapply(settings_geo, convert_name)
-
-
-
-  geomatching()
-  # "long format (xyt)", "matrice 3D"
-  # "griglia", "punto"
-  # c("municipale", "provinciale", "regionale")
-
   # # chiudere la connessione
   # dbDisconnect(con)
 
