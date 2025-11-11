@@ -1,10 +1,10 @@
 library(plumber)
 library(jsonlite)
 library(geotools)
-library(httr) #da aggiungere all immagine
-library(jsonlite) #da aggiungere all immagine
+library(httr)
+library(jsonlite)
 library(DBI)
-library(RPostgres)  # se stai usando Postgres
+library(RPostgres)
 
 base_validation <- function(body){
 
