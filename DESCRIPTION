@@ -19,9 +19,9 @@ Authors@R: c(
       role = c("aut", "cre")
     )
   )
-Description: The geotools package is an R library designed to simplify the
-    management, analysis, and processing of space-time data. In particular,
-    it provides a comprehensive set of modules that enable the computation of
+Description: The geotools package is an R library designed to match spatial 
+    georeferenced data with the administrative boundaries of Italy.
+    In particular, it enables the computation of
     statistics for space-time variables (e.g., meteorological and air quality
     data) whose values are available on different spatial heterogeneous grids at
     the polygonal scale (e.g., municipal or regional).
