@@ -1,6 +1,8 @@
 ---
 title: ""
-format: pdf
+format:
+  pdf:
+    fig-format: pdf   # or "png"
 ---
 
 ![](https://www.unibg.it/themes/custom/unibg/logo.svg){width="250"}
@@ -97,7 +99,7 @@ head(ERA5SL_rh_10d, n = 10)
 
 ## First look
 
-```{r}
+```{r, plotting_raw}
 
 for (item_i in WE_data) {
   
@@ -141,7 +143,7 @@ for (item_i in WE_data) {
 
 ## Run geomatching
 
-```{r}
+```{r, geomatching}
 aggr_data <- list()
 for (item_i in LAUs_data) {
   
@@ -232,7 +234,7 @@ for (item_i in LAUs_data) {
 
 ## Visualize aggregated data
 
-```{r}
+```{r, plotting_results}
 
 for (code_i in names(aggr_data)) {
   
