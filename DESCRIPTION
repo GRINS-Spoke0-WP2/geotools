@@ -20,7 +20,10 @@ Authors@R: c(
     )
   )
 Description: The geotools package is an R library designed to match spatial 
-    georeferenced data with the administrative boundaries of Italy.
+    georeferenced data with a specified common spatial support. 
+    It includes an automatic procedure to harmonise spatial data at
+    different supporto to the polygonal spatial support of the 
+    Italian administrative boundaries.
     In particular, it enables the computation of
     statistics for space-time variables (e.g., meteorological and air quality
     data) whose values are available on different spatial heterogeneous grids at
