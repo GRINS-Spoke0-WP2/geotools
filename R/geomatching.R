@@ -28,6 +28,16 @@
 #' for aggregation when \code{aggregate = TRUE}. Accepted values are \strong{"mun"}
 #' (municipality), \strong{"prov"} (province) or \strong{"reg"} (region).
 #' The data will be grouped and summarized according to the selected boundary level.
+#' @param sd Character string. Specifies the type of uncertainty desired.
+#' Accepted values are \strong{"intra"} or \strong{"varX"}. Use \strong{"intra"}
+#' if the standard deviation is calculated as the intra-variability within the polygon.
+#' Use \strong{"varX"} if the variables has a standard deviation associated. In this case,
+#' for each column harmonised, an other column called the same plus "_sd" is looked for.
+#' For each polygon, these values are squared, summed and divided by the square of
+#' elements used. Finally, square root is provided.
+#' @param stats Use only if aggregate is \code{TRUE}. Select which statistics
+#' you want to calculate. Accepted values are: \strong{min},\strong{1st_quartile},
+#' \strong{mean},\strong{median},\strong{3rd_quartile},\strong{max},\strong{sd}.
 #'
 #' @return A \strong{data.frame} containing the matched data aligned on the
 #' reference grid.
@@ -59,7 +69,9 @@
 geomatching <- function(data,
                         settings = NULL,
                         aggregate = FALSE,
-                        group_by = "mun"){
+                        group_by = "mun",
+                        sd = "intra",
+                        stats = "mean"){
 
   data <- list(data)
   ndata <- length(data)
@@ -106,8 +118,19 @@ geomatching <- function(data,
     raw_df <- STs[[1]]@data
     num_vars <- .get_numeric_var_names(raw_df)
 
+    # standard devation
+    if (sd=="varX"){
+      sd_vars <- num_vars[grep("_sd",num_vars)]
+      sd_df <- .calculate_sd(raw_df,code,sd_vars)
+      num_vars <- setdiff(num_vars,sd_vars)
+    }
+
     # execute
     aggr_df <- .aggregate(raw_df, code, num_vars)
+
+    if (sd=="varX"){
+      aggr_df <- cbind(aggr_df,sd_df)
+    }
 
     # restore missing mun.
     if (group_by == "mun") {
@@ -356,8 +379,47 @@ geomatching <- function(data,
   )
 }
 
-.aggregate <- function(df, code, vars) {
+.aggregate <- function(df, code, vars, stats) {
 
+  all_stats <- list(
+    min = ~min(.x, na.rm = TRUE),
+    `1st_quartile` = ~quantile(.x, 0.25, na.rm = TRUE),
+    mean = ~mean(.x, na.rm = TRUE),
+    median = ~median(.x, na.rm = TRUE),
+    `3rd_quartile` = ~quantile(.x, 0.75, na.rm = TRUE),
+    max = ~max(.x, na.rm = TRUE),
+    sd = ~sd(.x, na.rm = TRUE)
+  )
+
+  # Se l’utente scrive "ALL", usiamo tutte le statistiche
+  if(length(stats) == 1 && toupper(stats) == "ALL") {
+    stats_to_use <- all_stats
+  } else {
+    # Controllo che le statistiche richieste siano valide
+    invalid <- setdiff(stats, names(all_stats))
+    if(length(invalid) > 0) {
+      stop(paste("Stats not valid:", paste(invalid, collapse = ", ")))
+    }
+    stats_to_use <- all_stats[stats]
+  }
+
+  aggr_df <- suppressWarnings(
+    df %>%
+      dplyr::group_by(
+        dplyr::across(dplyr::all_of(c(code, "time")))
+      ) %>%
+      dplyr::summarise(
+        dplyr::across(
+          dplyr::all_of(vars),
+          stats_to_use
+        ),
+        .groups = "drop"
+      )
+  )
+  return(aggr_df)
+}
+
+.calculate_sd <- function(df, code, vars){
   aggr_df <- suppressWarnings(
     df %>%
       dplyr::group_by(
@@ -369,19 +431,13 @@ geomatching <- function(data,
         dplyr::across(
           dplyr::all_of(vars),
           list(
-            min = ~min(.x, na.rm = TRUE),
-            `1st_quartile` = ~quantile(.x, 0.25, na.rm = TRUE),
-            mean = ~mean(.x, na.rm = TRUE),
-            median = ~median(.x, na.rm = TRUE),
-            `3rd_quartile` = ~quantile(.x, 0.75, na.rm = TRUE),
-            max = ~max(.x, na.rm = TRUE),
-            sd = ~sd(.x, na.rm = TRUE)
+            ~sqrt(sum((.x^2), na.rm = TRUE) / n()^2)
           )
         ),
         .groups = "drop"
       )
   )
-
+  names(aggr_df) <- gsub("_1","",names(aggr_df))
   return(aggr_df)
 }
 

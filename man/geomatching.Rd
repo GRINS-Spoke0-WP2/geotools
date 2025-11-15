@@ -30,6 +30,15 @@ the matched data without aggregation.}
 for aggregation when \code{aggregate = TRUE}. Accepted values are \strong{"mun"}
 (municipality), \strong{"prov"} (province) or \strong{"reg"} (region).
 The data will be grouped and summarized according to the selected boundary level.}
+
+\item{sd}{Character string. Specifies the type of uncertainty desired.
+Accepted values are \strong{"intra"} or \strong{"varX"}. Use \strong{"intra"}
+if the standard deviation is calculated as the intra-variability within the polygon.
+Use \strong{"varX"} if the variables has a standard deviation associated. In this case,
+for each column harmonised, a second column called "sd_(same name of the
+column harmonised)" is looked for. For each polygon, these values are squared,
+summed and divided by the square of elements used. Finally, square root is
+provided.}
 }
 \value{
 A \strong{data.frame} containing the matched data aligned on the
