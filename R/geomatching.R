@@ -73,7 +73,8 @@ geomatching <- function(data,
                         sd = "intra",
                         stats = "mean"){
 
-  data <- list(data)
+  if(class(data)!="list"){
+  data <- list(data)}
   ndata <- length(data)
   if (is.null(settings)) {
     settings <- .empty_settings()
