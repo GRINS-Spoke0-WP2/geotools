@@ -6,7 +6,8 @@
 #' common grid, even when their geographic reference systems may differ.
 #' This procedure is known as \strong{spatial overlay}.
 #'
-#' @usage geomatching(data, settings = NULL, aggregate = FALSE, group_by = "mun")
+#' @usage geomatching(data, settings = NULL, aggregate = FALSE, group_by = "mun",
+#' sd = "intra", stats = "mean")
 #'
 #' @param data List of space-time datasets, each either a \code{data.frame} or a
 #' 3D \code{matrix}. The spatial grid of the first element is used as the
