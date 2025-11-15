@@ -34,7 +34,7 @@
 #' Use \strong{"varX"} if the variables has a standard deviation associated. In this case,
 #' for each column harmonised, an other column called the same plus "_sd" is looked for.
 #' For each polygon, these values are squared, summed and divided by the square of
-#' elements used. Finally, square root is provided.
+#' elements used. Finally, square root is provided. Use only with mean aggregation.
 #' @param stats Use only if aggregate is \code{TRUE}. Select which statistics
 #' you want to calculate. Accepted values are: \strong{min},\strong{1st_quartile},
 #' \strong{mean},\strong{median},\strong{3rd_quartile},\strong{max},\strong{sd}.
