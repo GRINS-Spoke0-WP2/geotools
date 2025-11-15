@@ -127,10 +127,10 @@ geomatching <- function(data,
     }
 
     # execute
-    aggr_df <- .aggregate(raw_df, code, num_vars,stats)
+    aggr_df <- .aggregate(raw_df, code, num_vars, stats)
 
     if (sd=="varX"){
-      aggr_df <- cbind(aggr_df,sd_df)
+      aggr_df <- cbind(aggr_df,sd_df[grep("_sd",names(sd_df))])
     }
 
     # restore missing mun.
