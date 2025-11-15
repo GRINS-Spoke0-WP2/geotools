@@ -122,12 +122,12 @@ geomatching <- function(data,
     # standard devation
     if (sd=="varX"){
       sd_vars <- num_vars[grep("_sd",num_vars)]
-      sd_df <- .calculate_sd(raw_df,code,sd_vars,stats)
+      sd_df <- .calculate_sd(raw_df,code,sd_vars)
       num_vars <- setdiff(num_vars,sd_vars)
     }
 
     # execute
-    aggr_df <- .aggregate(raw_df, code, num_vars)
+    aggr_df <- .aggregate(raw_df, code, num_vars,stats)
 
     if (sd=="varX"){
       aggr_df <- cbind(aggr_df,sd_df)
