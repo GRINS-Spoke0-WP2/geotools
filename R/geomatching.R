@@ -61,6 +61,7 @@ geomatching <- function(data,
                         aggregate = FALSE,
                         group_by = "mun"){
 
+  data <- list(data)
   ndata <- length(data)
   if (is.null(settings)) {
     settings <- .empty_settings()
