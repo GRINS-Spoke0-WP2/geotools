@@ -6,8 +6,7 @@
 #' common grid, even when their geographic reference systems may differ.
 #' This procedure is known as \strong{spatial overlay}.
 #'
-#' @usage geomatching(data, settings = NULL, aggregate = FALSE, group_by = "mun",
-#' sd = "intra", stats = "mean")
+#' @usage geomatching(data, settings = NULL, aggregate = FALSE, group_by = "mun", sd = "intra", stats = "mean")
 #'
 #' @param data List of space-time datasets, each either a \code{data.frame} or a
 #' 3D \code{matrix}. The spatial grid of the first element is used as the
@@ -123,7 +122,7 @@ geomatching <- function(data,
     # standard devation
     if (sd=="varX"){
       sd_vars <- num_vars[grep("_sd",num_vars)]
-      sd_df <- .calculate_sd(raw_df,code,sd_vars)
+      sd_df <- .calculate_sd(raw_df,code,sd_vars,stats)
       num_vars <- setdiff(num_vars,sd_vars)
     }
 
