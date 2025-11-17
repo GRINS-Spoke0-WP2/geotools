@@ -37,7 +37,8 @@
 #' elements used. Finally, square root is provided. Use only with mean aggregation.
 #' @param stats Use only if aggregate is \code{TRUE}. Select which statistics
 #' you want to calculate. Accepted values are: \strong{min},\strong{1st_quartile},
-#' \strong{mean},\strong{median},\strong{3rd_quartile},\strong{max},\strong{sd}.
+#' \strong{mean},\strong{median},\strong{3rd_quartile},\strong{max},\strong{sd} or
+#' \strong{ALL} if you want all.
 #'
 #' @return A \strong{data.frame} containing the matched data aligned on the
 #' reference grid.
