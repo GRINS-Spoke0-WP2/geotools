@@ -3,11 +3,18 @@ library(jsonlite)
 library(geotools)
 library(httr)
 library(jsonlite)
-library(DBI)
-library(RPostgres)
 
-# base_url_API_amelia <- list( validation="https://ameliadpcoll.grins.it:59182/externalService/getValidationBearerToken",
-# get table ecc..
+log <- function(username, message) {
+  
+  print(
+    sprintf(
+      "%s [%s] - %s",
+      format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      username,
+      message
+    )
+  )
+}
 
 base_validation <- function(body){
 
@@ -99,7 +106,6 @@ base_validation <- function(body){
 
 validate_token <- function(body){
 
-  # NB: dev'essere specificata la porta sulla quale è in ascolto l'API?
   response <- POST(
     url = "https://ameliadpcoll.grins.it:59182/externalService/getValidationBearerToken", # da parametrizzare
     body = list(
@@ -114,24 +120,22 @@ validate_token <- function(body){
 }
 
 download_dataset <- function(bearer_token, username, info){
-
+  
   # setup
-  more_pages < TRUE
+  more_pages <- TRUE
   page_number <- 1
   all_data <- list()
-
+  
   while(more_pages){
-
-    # NB: da implementare il retry nel caso in cui la chiamata dovesse fallire
-
+    
     # POST
-    respose <- POST(
+    response <- POST(
       url = "https://ameliadpcoll.grins.it:59182/externalService/getTable",
       body = list(
         BearerToken = bearer_token,
         username = username,
         tableName = info$table_name,
-        columns = c(
+        columns = list(
           info$x_column,
           info$y_column,
           info$temporal_column,
@@ -139,14 +143,17 @@ download_dataset <- function(bearer_token, username, info){
         ),
         pageNumber = page_number,
         pageSize = 500
-      )
+      ),
+      encode = "json",
+      content_type_json()
     )
-
+    page_data <- content(response)
+    
     # concat
     if (!is.null(page_data$data) && length(page_data$data) > 0) {
       all_data <- c(all_data, page_data$data)
     }
-
+    
     # update page number
     if (!is.null(page_data$pagination)) {
       total_elements <- page_data$pagination$totalElements
@@ -161,14 +168,17 @@ download_dataset <- function(bearer_token, username, info){
       more_pages <- FALSE
     }
   }
-
+  
   # from list to data.frame
   if (length(all_data) > 0) {
     df<- as.data.frame(do.call(rbind, lapply(all_data, as.data.frame)))
   } else {
     df <- data.frame()
   }
-
+  
+  # log
+  log(username, sprintf("dataset '%s' downloaded", info$table_name))
+  
   return(df)
 }
 
@@ -181,8 +191,6 @@ insert_into_table <- function(bearer_token, username, table_name, df) {
     end <- min(start + batch_size - 1, n)
     batch <- df[start:end, , drop = FALSE]
     data_list <- lapply(seq_len(nrow(batch)), function(i) as.list(batch[i, ]))
-
-    # NB: da implementare il retry nel caso in cui la chiamata dovesse fallire
 
     # POST
     resp <- httr::POST(
@@ -204,6 +212,9 @@ insert_into_table <- function(bearer_token, username, table_name, df) {
 function(req, res){
 
   body <- jsonlite::fromJSON(req$postBody, simplifyVector = FALSE)
+  
+  # log
+  log(req$username, "geomatching service started")
 
   # base validation
   base_val_result <- base_validation(body)
@@ -211,6 +222,9 @@ function(req, res){
     res$status <- 400
     return(base_val_result)
   }
+  
+  # log
+  log(req$username, "body validated")
 
   # token validation
   token_val_response <- validate_token(body)
@@ -225,6 +239,9 @@ function(req, res){
       )
     )
   }
+  
+  # log
+  log(req$username, "token validated")
 
   # download dataset/s
   data <- list()
@@ -260,6 +277,9 @@ function(req, res){
   aggregation_level <- gsub("municipale", "mun", body$aggragation_level)
   aggregation_level <- gsub("provinciale", "prov", body$aggragation_level)
   aggregation_level <- gsub("regionale", "reg", body$aggragation_level)
+  
+  # log
+  log(req$username, "geomatching started")
 
   # perform geomatching
   results <- geomatching(
@@ -268,10 +288,11 @@ function(req, res){
     aggregate = TRUE,
     group_by = aggregation_level
   )
+  
+  # log
+  log(req$username, "geomatching ended")
 
-  # create my_processing table
-
-  # NB: da chiedere se 'columns' accetta tutti i tipi oppure un loro sottoinsieme
+  # create "My Processing" table
   table_name <- paste0("results_geomatching_", gsub(" ","-",as.character(format(Sys.time(),"%Y_%m_%d_%H_%M_%S"))))
   POST(
     url = "https://ameliadpcoll.grins.it:59182/externalService/createTable",
@@ -284,50 +305,19 @@ function(req, res){
     encode = "json",
     content_type_json()
   )
+  
+  # log
+  log(req$username, sprintf("table '%s' created", table_name))
 
-  # insert into my_processing table
+  # insert into "My Processing" table
   insert_into_table(
     body$BearerToken,
     body$username,
     table_name,
     results
   )
-
-  # # scrivere "Dataset presente in AMELIA"
-  # # serve HOST, porta, nome del DB, schema (solo se POSTGRES), nome tabella, colonne tabella
-  # # noi facciamo l'insert attraverso, serve anche un ID per trovare il corrispondente status (tra i molti?)
-  # # QUINDI:
-  # # Parametri forniti da loro
-  # host <- "<host>"
-  # port <- 5432          # di default PostgreSQL
-  # dbname <- "<nome_db>"
-  # user <- "<username>"
-  # password <- "<password>"
-  #
-  # # Connessione
-  # con <- dbConnect(
-  #   RPostgres::Postgres(),
-  #   host = host,
-  #   port = port,
-  #   dbname = dbname,
-  #   user = user,
-  #   password = password
-  # )
-  # # Inserire singole righe
-  # dbExecute(con, "
-  # INSERT INTO nome_tabella (col1, col2, col3)
-  # VALUES ('valore1', 123, 'valore3')")
-  # # chiudere la connessione
-  # dbDisconnect(con)
-
+  
+  # log
+  log(req$username, sprintf("table '%s' loaded in 'My Processing'", table_name))
+  
 }
-
-# nuova soluzione
-# scrivere i nostri log dentro la loro tabella attraverso le API
-# niente tabelle
-
-
-
-
-
-
