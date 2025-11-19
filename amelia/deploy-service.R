@@ -1,40 +1,97 @@
 library(plumber)
-library(jsonlite)
 library(geotools)
 library(httr)
 library(jsonlite)
+library(future)
+library(dplyr)
 
-log <- function(username, message) {
+plan(multisession)
+
+log <- function(status, message) {
   
-  print(
+  # console
+  message(
     sprintf(
-      "%s [%s] - %s",
+      "%s [%s] - [%s] %s",
       format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
-      username,
+      .GlobalEnv$username,
+      status,
       message
     )
   )
+  
+  # API
+  POST(
+    url = "https://ameliadpcoll.grins.it:59182/externalService/insertStatusInformation",
+    body = list(
+      BearerToken = .GlobalEnv$bearer_token,
+      username = .GlobalEnv$username,
+      filename = .GlobalEnv$myp_table_name,
+      statusCode = status,
+      message = message
+    ),
+    encode = "json",
+    content_type_json()
+  )
 }
 
-base_validation <- function(body){
+invoke_API <- function(url, body){
+  
+  # setup
+  attempt <- 1
+  max_retries <- 5
+  delay <- 10
+  
+  repeat {
+    
+    response <- tryCatch(
+      {
+        POST(
+          url = url,
+          body = body,
+          encode = "json",
+          content_type_json()
+        )
+      },
+      error = function(e) {
+        log("Error", sprintf("API call failed: %s", e$message))
+        return(NULL)
+      }
+    )
+    
+    if (!is.null(response)) {
+      if (httr::status_code(response) == 200) {
+        return(content(response))
+      } else {
+        log("Warning", sprintf("attempt %d of %d, status code %d", attempt, max_retries, status_code(response)))
+      }
+    } else {
+      log("Warning", sprintf("attempt %d of %d", attempt, max_retries))
+    }
+    
+    attempt <- attempt + 1
+    
+    if (attempt > max_retries) {
+      log("Error", "max retries reached, unable to complete the request.")
+      stop()
+    }
+    
+    Sys.sleep(delay)
+  }
+}
+
+validate_body <- function(body){
 
   # check #1: missing fields
   required_fields <- c("BearerToken", "username", "datasets", "aggregation_level")
   missing_fields <- setdiff(required_fields, names(body))
   if(length(missing_fields) > 0){
-    return(
-      list(
-        error = TRUE,
-        type = "MissingFields",
-        message = sprintf("Missing fields: %s",
-                        paste(missing_fields, collapse = ", ")),
-        details = NULL
-      )
-    )
+    log("Error", sprintf("missing fields: %s", paste(missing_fields, collapse = ", ")))
+    stop()
   }
 
   # check #2: 'datasets' field
-  i <- 0
+  i <- 1
   for(dataset_i in body$datasets){
 
     # check #2.1: missing fields
@@ -42,45 +99,20 @@ base_validation <- function(body){
                          "harmonize_columns", "crs", "format", "data_type")
     missing_fields <- setdiff(required_fields, names(dataset_i))
     if(length(missing_fields) > 0){
-      return(
-        list(
-          error = TRUE,
-          type = "Datasetvalidation",
-          message = sprintf("Dataset %d, missing fields: %s",
-                          i, paste(missing_fields, collapse = ", ")),
-          details = dataset_i
-        )
-      )
+      log("Error", sprintf("dataset %d, missing fields: %s", i, paste(missing_fields, collapse = ", ")))
+      stop()
     }
 
     # check #2.2: 'format' field
     if(!(dataset_i$format %in% c("long format (xyt)", "matrice 3D"))){
-      return(
-        list(
-          error = TRUE,
-          type = "InvalidFormat",
-          message = sprintf(
-            "Dataset %d, invalid format: '%s'. Allowed values are: 'long format (xyt)', 'matrice 3D'.",
-            i, dataset_i$format
-          ),
-          details = dataset_i
-        )
-      )
+      log("Error", sprintf("Dataset %d, invalid format: '%s'. Allowed values are: 'long format (xyt)', 'matrice 3D'.", i, dataset_i$format))
+      stop()
     }
 
     # check #2.3: 'data_type' field
     if(!(dataset_i$data_type %in% c("griglia", "punto"))){
-      return(
-        list(
-          error = TRUE,
-          type = "InvalidDataType",
-          message = sprintf(
-            "Dataset %d, invalid data_type: '%s'. Allowed values are: 'griglia', 'punto'.",
-            i, dataset_i$data_type
-          ),
-          details = dataset_i
-        )
-      )
+      log("Error", sprintf("Dataset %d, invalid data_type: '%s'. Allowed values are: 'griglia', 'punto'.", i, dataset_i$data_type))
+      stop()
     }
 
     i <- i + 1
@@ -88,38 +120,23 @@ base_validation <- function(body){
 
   # check #3: 'aggregation_level' field
   if(!(body$aggregation_level %in% c("municipale", "provinciale", "regionale"))){
-    return(
-      list(
-        error = TRUE,
-        type = "InvalidAggregationLevel",
-        message = sprintf(
-          "Invalid aggregation_level: '%s'. Allowed values are: 'municipale', 'provinciale', 'regionale'.",
-          body$aggregation_level
-        ),
-        details = NULL
-      )
-    )
+    log("Error", sprintf("Invalid aggregation_level: '%s'. Allowed values are: 'municipale', 'provinciale', 'regionale'.", body$aggregation_level))
+    stop()
   }
-
-  return(list())
 }
 
-validate_token <- function(body){
+validate_token <- function(){
 
-  response <- POST(
-    url = "https://ameliadpcoll.grins.it:59182/externalService/getValidationBearerToken", # da parametrizzare
+  invoke_API(
+    url = "https://ameliadpcoll.grins.it:59182/externalService/getValidationBearerToken",
     body = list(
-      BearerToken = body$BearerToken,
-      username = body$username
-    ),
-    encode = "json",
-    content_type_json()
+      BearerToken = .GlobalEnv$bearer_token,
+      username = .GlobalEnv$username
+    )
   )
-
-  return(response)
 }
 
-download_dataset <- function(bearer_token, username, info){
+download_dataset <- function(info){
   
   # setup
   more_pages <- TRUE
@@ -129,11 +146,11 @@ download_dataset <- function(bearer_token, username, info){
   while(more_pages){
     
     # POST
-    response <- POST(
+    page_data <- invoke_API(
       url = "https://ameliadpcoll.grins.it:59182/externalService/getTable",
       body = list(
-        BearerToken = bearer_token,
-        username = username,
+        BearerToken = .GlobalEnv$bearer_token,
+        username = .GlobalEnv$username,
         tableName = info$table_name,
         columns = list(
           info$x_column,
@@ -143,11 +160,8 @@ download_dataset <- function(bearer_token, username, info){
         ),
         pageNumber = page_number,
         pageSize = 500
-      ),
-      encode = "json",
-      content_type_json()
+      )
     )
-    page_data <- content(response)
     
     # concat
     if (!is.null(page_data$data) && length(page_data$data) > 0) {
@@ -176,15 +190,22 @@ download_dataset <- function(bearer_token, username, info){
     df <- data.frame()
   }
   
-  # log
-  log(username, sprintf("dataset '%s' downloaded", info$table_name))
+  log("Info", sprintf("dataset '%s' downloaded", info$table_name))
   
   return(df)
 }
 
-insert_into_table <- function(bearer_token, username, table_name, df) {
-
+insert_into_table <- function(df) {
+  
+  # setup
+  n <- nrow(df)
   batch_size <- 500
+  
+  if (nrow(df) == 0) {
+    log("Error", "no data to insert into the table")
+    stop()
+  }
+  
   for (start in seq(1, n, by = batch_size)) {
 
     # from data.frame to list
@@ -193,131 +214,142 @@ insert_into_table <- function(bearer_token, username, table_name, df) {
     data_list <- lapply(seq_len(nrow(batch)), function(i) as.list(batch[i, ]))
 
     # POST
-    resp <- httr::POST(
+    invoke_API(
       url = "https://ameliadpcoll.grins.it:59182/externalService/insertIntoTable",
       body = list(
-        BearerToken = bearer_token,
-        username = username,
-        tableName = table_name,
+        BearerToken = .GlobalEnv$bearer_token,
+        username = .GlobalEnv$username,
+        tableName = .GlobalEnv$myp_table_name,
         data = data_list
-      ),
-      encode = "json",
-      content_type_json()
+      )
     )
+  }
+}
+
+map_R_to_SQL_type <- function(r_type) {
+  
+  type_mapping <- list(
+    integer = "INT",
+    numeric = "DOUBLE",
+    character = "STRING",
+    factor = "STRING",
+    logical = "BOOLEAN",
+    Date = "DATE",
+    POSIXct = "TIMESTAMP"
+  )
+  
+  if (r_type %in% names(type_mapping)) {
+    return(type_mapping[[r_type]])
+  } else {
+    log("Error", "R type not supported")
+    stop()
   }
 }
 
 #* @post /invoke-geomatching
 #* @serializer json
 function(req, res){
-
+  
   body <- jsonlite::fromJSON(req$postBody, simplifyVector = FALSE)
+  .GlobalEnv$myp_table_name <- paste0("results_geomatching_", gsub(" ","-",as.character(format(Sys.time(),"%Y_%m_%d_%H_%M_%S"))))
+  .GlobalEnv$bearer_token = body$BearerToken
+  .GlobalEnv$username = body$username
   
-  # log
-  log(req$username, "geomatching service started")
+  log("Start", "geomatching service started")
 
-  # base validation
-  base_val_result <- base_validation(body)
-  if(length(base_val_result) > 0){
-    res$status <- 400
-    return(base_val_result)
-  }
+  # validate body
+  validate_body(body)
+  log("Info", "body validated")
+
+  # validate token
+  validate_token()
+  log("Info", "token validated")
   
-  # log
-  log(req$username, "body validated")
-
-  # token validation
-  token_val_response <- validate_token(body)
-  if (!(token_val_response$status_code %in% c(200, 403))) {
-    res$status <- 400
-    return(
-      list(
-        error = TRUE,
-        type = "InvalidToken",
-        message = "Bearer token is invalid or unauthorized.",
-        details = content(token_val_response, "text")
+  # response
+  res$status <- 200
+  res$body <- list(
+    message = "body and token validated, geomatching running in background"
+  )
+  
+  future(
+    {
+      # download dataset/s
+      data <- list()
+      geomatching_settings <- list()
+      i <- 1
+      for (item_i in body$datasets) {
+        
+        # run
+        temp <- download_dataset(
+          item_i
+        )
+        
+        # reorder columns
+        if(!(item_i$format == "matrice 3D")){
+          data[[i]] <- temp %>% dplyr::select(
+            dplyr::all_of(
+              c(item_i$x_column, item_i$y_column, item_i$temporal_column)
+            ),
+            dplyr::everything()
+          )
+        }
+        
+        # save settings
+        geomatching_settings[[i]] <- list(
+          format = item_i$format,
+          type = item_i$data_type,
+          crs = item_i$crs
+        )
+        i <- i + 1
+      }
+      
+      # create geomatching settings
+      convert_name <- function(list_convert){
+        list_convert_mod <- list_convert
+        list_convert_mod[["format"]] <- as.list(gsub("long format \\(xyt\\)","xyt",list_convert_mod[["format"]]))
+        list_convert_mod[["format"]] <- as.list(gsub("matrice 3D","matrix",list_convert_mod[["format"]]))
+        list_convert_mod[["type"]] <- as.list(gsub("griglia","grid",list_convert_mod[["type"]]))
+        list_convert_mod[["type"]] <- as.list(gsub("punto","points",list_convert_mod[["type"]]))
+        list_convert_mod[["crs"]] <- list_convert_mod[["crs"]]
+        return(list_convert_mod)}
+      geomatching_settings <- lapply(geomatching_settings, convert_name)
+      
+      # cast aggregation level
+      aggregation_level <- gsub("municipale", "mun", body$aggregation_level)
+      aggregation_level <- gsub("provinciale", "prov", body$aggregation_level)
+      aggregation_level <- gsub("regionale", "reg", body$aggregation_level)
+      
+      # perform geomatching
+      log("Info", "geomatching started")
+      results <- geomatching(
+        data = data,
+        settings = geomatching_settings,
+        aggregate = TRUE,
+        group_by = aggregation_level
       )
-    )
-  }
-  
-  # log
-  log(req$username, "token validated")
-
-  # download dataset/s
-  data <- list()
-  geomatching_settings <- list()
-  i <- 1
-  for (item_i in body$datasets) {
-    data[[i]] <- download_dataset(
-      body$BearerToken,
-      body$username,
-      item_i
-    )
-    geomatching_settings[[i]] <- list(
-      format = item_i$format,
-      type = item_i$data_type,
-      crs = item_i$crs
-    )
-    i <- i + 1
-  }
-
-  # create geomatching settings
-  convert_name <- function(list_convert){
-    list_convert_mod <- list()
-    list_convert_mod <- list_convert
-    list_convert_mod[["format"]] <- as.list(gsub("long format \\(xyt\\)","xyt",list_convert_mod[["format"]]))
-    list_convert_mod[["format"]] <- as.list(gsub("matrice 3D","matrix",list_convert_mod[["format"]]))
-    list_convert_mod[["type"]] <- as.list(gsub("griglia","grid",list_convert_mod[["type"]]))
-    list_convert_mod[["type"]] <- as.list(gsub("punto","points",list_convert_mod[["type"]]))
-    list_convert_mod[["crs"]] <- list_convert_mod[["crs"]]
-    return(list_convert_mod)}
-  geomatching_settings <- lapply(geomatching_settings, convert_name)
-
-  # cast aggregation level
-  aggregation_level <- gsub("municipale", "mun", body$aggragation_level)
-  aggregation_level <- gsub("provinciale", "prov", body$aggragation_level)
-  aggregation_level <- gsub("regionale", "reg", body$aggragation_level)
-  
-  # log
-  log(req$username, "geomatching started")
-
-  # perform geomatching
-  results <- geomatching(
-    data = data,
-    settings = geomatching_settings,
-    aggregate = TRUE,
-    group_by = aggregation_level
+      log("Info", "geomatching ended")
+      
+      # create "My Processing" table
+      invoke_API(
+        url = "https://ameliadpcoll.grins.it:59182/externalService/createTable",
+        body = list(
+          BearerToken = .GlobalEnv$bearer_token,
+          username = .GlobalEnv$username,
+          tableName = .GlobalEnv$myp_table_name,
+          columns = as.list(sapply(sapply(results, class), map_R_to_SQL_type))
+        )
+      )
+      log("Info", sprintf("table '%s' created", .GlobalEnv$myp_table_name))
+      
+      # insert into "My Processing" table
+      insert_into_table(
+        results
+      )
+      log("Info", sprintf("table '%s' loaded in 'My Processing'", .GlobalEnv$myp_table_name))
+    }
   )
-  
-  # log
-  log(req$username, "geomatching ended")
-
-  # create "My Processing" table
-  table_name <- paste0("results_geomatching_", gsub(" ","-",as.character(format(Sys.time(),"%Y_%m_%d_%H_%M_%S"))))
-  POST(
-    url = "https://ameliadpcoll.grins.it:59182/externalService/createTable",
-    body = list(
-      BearerToken = body$BearerToken,
-      username = body$username,
-      tableName = table_name,
-      columns = sapply(results, class)
-    ),
-    encode = "json",
-    content_type_json()
-  )
-  
-  # log
-  log(req$username, sprintf("table '%s' created", table_name))
-
-  # insert into "My Processing" table
-  insert_into_table(
-    body$BearerToken,
-    body$username,
-    table_name,
-    results
-  )
-  
-  # log
-  log(req$username, sprintf("table '%s' loaded in 'My Processing'", table_name))
-  
 }
+
+# Da creare un ambiente dedicato per le variabili globali
+# Da impostare host e porta tramite variabili globali
+# Da capire se aggiungere o meno dei log quando vengono caricati i dati a batch
