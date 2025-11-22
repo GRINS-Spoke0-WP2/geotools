@@ -343,7 +343,7 @@ geomatching <- function(data,
   grid_list <- list()
   i <- 1
   for(date_i in seq(as.Date(first_date), as.Date(last_date), by = "day")){
-    temp <- hr_grid_LAUs
+    temp <- geotools::hr_grid_LAUs
     temp$time <- date_i
     grid_list[[i]] <- temp
     i <- i + 1
