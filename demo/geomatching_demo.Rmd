@@ -174,7 +174,16 @@ for (item_i in LAUs_data) {
       )
     ),
     aggregate = TRUE,
-    group_by = code_i
+    group_by = code_i,
+    stats = c(
+      "min",
+      "1st_quartile",
+      "mean",
+      "median",
+      "3rd_quartile",
+      "max",
+      "sd"
+    )
   )
   
   # rename columns #1
@@ -187,21 +196,21 @@ for (item_i in LAUs_data) {
     "lai_hv_max",
     "lai_hv_std"
   )
-  
+
   # fill missing values
-  stats <- c("min", "1st_quartile", "mean", "median", "3rd_quartile", "max", "std")
+  stats <- c("min", "1st_quartile", "mean", "median", "3rd_quartile", "max", "sd")
   for (stat_i in stats) {
     land_col <- paste0("t2m_Land_", stat_i)
     sl_col <- paste0("t2m_SL_", stat_i)
     temp[[land_col]][is.na(temp[[land_col]])] <- temp[[sl_col]][is.na(temp[[land_col]])]
   }
-  
+
   # drop columns
   temp <- temp[, !names(temp) %in% c(
     "t2m_SL_min", "t2m_SL_1st_quartile", "t2m_SL_mean", "t2m_SL_median",
-    "t2m_SL_3rd_quartile", "t2m_SL_max", "t2m_SL_std")
+    "t2m_SL_3rd_quartile", "t2m_SL_max", "t2m_SL_sd")
   ]
-  
+
   # rename columns #2
   names(temp)[3:9] <- c(
     "t2m_min",
@@ -210,9 +219,9 @@ for (item_i in LAUs_data) {
     "t2m_median",
     "t2m_3rd_quartile",
     "t2m_max",
-    "t2m_std"
+    "t2m_sd"
   )
-  
+
   # join
   temp <- left_join(
     bounds_i,
@@ -239,8 +248,8 @@ for (code_i in names(aggr_data)) {
   p <- ggplot() + 
     geom_sf(
       data = subset_i,
-      aes(fill = t2m_mean),linewidth = .01) + 
-        scale_fill_continuous(type = "viridis",name = "Temperature [°C]") +
+      aes(fill = t2m_mean), linewidth = .01) + 
+        scale_fill_continuous(type = "viridis", name = "Temperature [°C]") +
           labs(
             title = "Geographical map of weather data",
             subtitle = sprintf("Aggregation level: %s", code_i),
