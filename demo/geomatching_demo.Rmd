@@ -1,10 +1,16 @@
-![](https://www.unibg.it/themes/custom/unibg/logo.svg){width="250"}
+# [Working Example]{.underline}
 
-# [Geomatching]{.underline}: a sneak peek
+In the following section, we provide a working example of the function **geomatching** also available as R package downloadable from GitLab:
+
+```{r, eval = FALSE}
+
+library(devtools)
+devtools::install_github("GRINS-Spoke0-WP2/geotools")
+```
 
 ## Import R libraries
 
-```{r}
+```{r, eval = TRUE}
 
 rm(list = ls())
 library(ggplot2)
@@ -22,7 +28,7 @@ library(geotools)
 
 -   `ERA5SL_lai_hv_10d_matrix`: 3D matrix (*x*-component represents *longitude, y*-component describes *latitude* and *z-*component represents *time*) 10 days of **Leaf Area Index - High Vegetation**. Grid resolution: 0.25° x 0.25° (about 27 km x 27 km).
 
-```{r}
+```{r, eval = TRUE}
 
 # weather data
 load("WE_raw_data.Rdata")
@@ -71,28 +77,28 @@ LAUs_data = list(
 
 `ERA5Land_t2m_10d`
 
-```{r}
+```{r, eval = TRUE}
 
 head(ERA5Land_t2m_10d, n = 10)
 ```
 
 `ERA5SL_t2m_10d`
 
-```{r}
+```{r, eval = TRUE}
 
 head(ERA5SL_t2m_10d, n = 10)
 ```
 
 `ERA5SL_rh_10d`
 
-```{r}
+```{r, eval = TRUE}
 
 head(ERA5SL_rh_10d, n = 10)
 ```
 
 ## First look
 
-```{r}
+```{r, eval = TRUE}
 
 for (item_i in WE_data) {
   
@@ -112,7 +118,7 @@ for (item_i in WE_data) {
       color = "black",
       linewidth = .1,
       alpha=.9
-    ) + 
+    ) +
     geom_tile(
       data = subset_i,
       aes(x = longitude, y = latitude, fill = .data[[var_i]])
@@ -122,7 +128,7 @@ for (item_i in WE_data) {
       subtitle = label_i,
       x = "Longitude",
       y = "Latitude"
-    ) + 
+    ) +
     scale_fill_viridis_c(
       option = "C"
     ) +
@@ -136,7 +142,8 @@ for (item_i in WE_data) {
 
 ## Run geomatching
 
-```{r}
+```{r, eval = TRUE, results = 'hide'}
+
 aggr_data <- list()
 for (item_i in LAUs_data) {
   
@@ -234,9 +241,9 @@ for (item_i in LAUs_data) {
 }
 ```
 
-## Visualize aggregated data
+## Visualize aggregated air temperature
 
-```{r}
+```{r, eval = TRUE}
 
 for (code_i in names(aggr_data)) {
   
@@ -248,10 +255,11 @@ for (code_i in names(aggr_data)) {
   p <- ggplot() + 
     geom_sf(
       data = subset_i,
-      aes(fill = t2m_mean), linewidth = .01) + 
+      aes(fill = t2m_mean),
+      color = NA) + 
         scale_fill_continuous(type = "viridis", name = "Temperature [°C]") +
           labs(
-            title = "Geographical map of weather data",
+            title = "Geographical map of air temperature",
             subtitle = sprintf("Aggregation level: %s", code_i),
             x = "Longitude",
             y = "Latitude") +
