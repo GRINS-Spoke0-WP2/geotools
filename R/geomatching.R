@@ -35,7 +35,6 @@
 #' for each column harmonised, an other column called the same plus "_sd" is looked for.
 #' For each polygon, these values are squared, summed and divided by the square of
 #' elements used. Finally, square root is provided. Use only with mean aggregation.
-#' If \strong{"varX"} is used do not put "sd" in the stats field.
 #' @param stats Use only if aggregate is \code{TRUE}. Select which statistics
 #' you want to calculate. Accepted values are: \strong{min},\strong{1st_quartile},
 #' \strong{mean},\strong{median},\strong{3rd_quartile},\strong{max},\strong{sd} or
@@ -76,7 +75,7 @@ geomatching <- function(data,
                         stats = "mean"){
 
   if(class(data)!="list"){
-  data <- list(data)}
+    data <- list(data)}
   ndata <- length(data)
   if (is.null(settings)) {
     settings <- .empty_settings()
@@ -375,7 +374,7 @@ geomatching <- function(data,
 .get_numeric_var_names <- function(df) {
 
   return(
-      setdiff(
+    setdiff(
       names(df)[sapply(df, is.numeric)],
       c("longitude", "latitude", "time", "COD_REG", "COD_PROV", "PRO_COM")
     )
@@ -391,7 +390,8 @@ geomatching <- function(data,
     median = ~median(.x, na.rm = TRUE),
     `3rd_quartile` = ~quantile(.x, 0.75, na.rm = TRUE),
     max = ~max(.x, na.rm = TRUE),
-    sd = ~sd(.x, na.rm = TRUE))
+    sd = ~sd(.x, na.rm = TRUE)
+  )
 
   # Se l’utente scrive "ALL", usiamo tutte le statistiche
   if(length(stats) == 1 && toupper(stats) == "ALL") {
