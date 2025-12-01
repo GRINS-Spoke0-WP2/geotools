@@ -381,7 +381,7 @@ geomatching <- function(data,
   )
 }
 
-.aggregate <- function(df, code, vars, stats) {
+.aggregate <- function(df, code, vars, stats, sd) {
 
   if(sd=="intra"){
   all_stats <- list(
