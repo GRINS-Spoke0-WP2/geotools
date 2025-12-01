@@ -383,6 +383,7 @@ geomatching <- function(data,
 
 .aggregate <- function(df, code, vars, stats) {
 
+  if(sd=="intra"){
   all_stats <- list(
     min = ~min(.x, na.rm = TRUE),
     `1st_quartile` = ~quantile(.x, 0.25, na.rm = TRUE),
@@ -391,10 +392,19 @@ geomatching <- function(data,
     `3rd_quartile` = ~quantile(.x, 0.75, na.rm = TRUE),
     max = ~max(.x, na.rm = TRUE),
     sd = ~sd(.x, na.rm = TRUE)
-  )
+  )}else{
+    all_stats <- list(
+      min = ~min(.x, na.rm = TRUE),
+      `1st_quartile` = ~quantile(.x, 0.25, na.rm = TRUE),
+      mean = ~mean(.x, na.rm = TRUE),
+      median = ~median(.x, na.rm = TRUE),
+      `3rd_quartile` = ~quantile(.x, 0.75, na.rm = TRUE),
+      max = ~max(.x, na.rm = TRUE))
+  }
 
   # Se l’utente scrive "ALL", usiamo tutte le statistiche
   if(length(stats) == 1 && toupper(stats) == "ALL") {
+
     stats_to_use <- all_stats
   } else {
     # Controllo che le statistiche richieste siano valide
@@ -404,6 +414,8 @@ geomatching <- function(data,
     }
     stats_to_use <- all_stats[stats]
   }
+
+
 
   aggr_df <- suppressWarnings(
     df %>%
