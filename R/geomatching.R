@@ -128,7 +128,7 @@ geomatching <- function(data,
     }
 
     # execute
-    aggr_df <- .aggregate(raw_df, code, num_vars, stats, sd=sd)
+    aggr_df <- .aggregate(raw_df, code, num_vars, stats)
 
     if (sd=="varX"){
       aggr_df <- cbind(aggr_df,sd_df[grep("_sd",names(sd_df))])
@@ -381,9 +381,8 @@ geomatching <- function(data,
   )
 }
 
-.aggregate <- function(df, code, vars, stats, sd) {
+.aggregate <- function(df, code, vars, stats) {
 
-  if(sd=="intra"){
   all_stats <- list(
     min = ~min(.x, na.rm = TRUE),
     `1st_quartile` = ~quantile(.x, 0.25, na.rm = TRUE),
@@ -391,16 +390,7 @@ geomatching <- function(data,
     median = ~median(.x, na.rm = TRUE),
     `3rd_quartile` = ~quantile(.x, 0.75, na.rm = TRUE),
     max = ~max(.x, na.rm = TRUE),
-    sd = ~sd(.x, na.rm = TRUE)
-  )}else{
-    all_stats <- list(
-      min = ~min(.x, na.rm = TRUE),
-      `1st_quartile` = ~quantile(.x, 0.25, na.rm = TRUE),
-      mean = ~mean(.x, na.rm = TRUE),
-      median = ~median(.x, na.rm = TRUE),
-      `3rd_quartile` = ~quantile(.x, 0.75, na.rm = TRUE),
-      max = ~max(.x, na.rm = TRUE))
-  }
+    sd = ~sd(.x, na.rm = TRUE))
 
   # Se l’utente scrive "ALL", usiamo tutte le statistiche
   if(length(stats) == 1 && toupper(stats) == "ALL") {
