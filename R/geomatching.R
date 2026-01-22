@@ -75,11 +75,12 @@ geomatching <- function(data,
                         sd = "intra",
                         stats = "mean"){
 
-  if(class(data)!="list"){
+  if(all(class(data)!="list")){
     data <- list(data)}
   ndata <- length(data)
   if (is.null(settings)) {
     settings <- .empty_settings()
+    settings <- .input_check(settings, ndata)
   }
 
   if(aggregate){
@@ -101,7 +102,7 @@ geomatching <- function(data,
     ndata <- length(data)
   }
 
-  settings <- .input_check(settings, ndata)
+  # qui c'era il settings
   grid.df <- .create_df(data, settings)
   STs <- .create_STs(data, grid.df, settings)
 
@@ -186,7 +187,7 @@ geomatching <- function(data,
 
   #accepted: points, grid
   if (is.null(settings$type)) {
-    settings$type <- rep("points", ndata)
+    settings$type <- rep("grid", ndata)
   }
 
   return(settings)
