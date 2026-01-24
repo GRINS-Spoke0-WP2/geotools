@@ -162,7 +162,7 @@ download_dataset <- function(info, auth){
   
   # setup
   more_pages <- TRUE
-  page_number <- 1
+  page_number <- 0
   all_data <- list()
   
   while(more_pages){
