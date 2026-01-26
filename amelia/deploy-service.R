@@ -396,7 +396,7 @@ function(req, res){
           results <- NULL
         }
       )
-      if (!is.null(response)){
+      if (!is.null(results)){
         log("Info", "geomatching ended", auth)
         
         # create "My Processing" table
