@@ -14,7 +14,7 @@ The ```geotools``` package is an R library designed to match spatial georeferenc
 Install the ```geotools``` package via GitHub:
 ``` r
 # install.packages("devtools")
-devtools::install_github("GRINS-Spoke0-WP2/geotools")
+devtools::install_github("afustamo/geotools")
 library(geotools)
 ``` 
 
